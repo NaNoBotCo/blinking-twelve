@@ -1,0 +1,9 @@
+name = "blinky1200-leaderboard"
+main = "src/worker.js"
+compatibility_date = "2026-01-01"
+
+# After `wrangler d1 create blinky1200`, paste the printed database_id below.
+[[d1_databases]]
+binding = "DB"
+database_name = "blinky1200"
+database_id = "PASTE_YOUR_D1_DATABASE_ID_HERE"

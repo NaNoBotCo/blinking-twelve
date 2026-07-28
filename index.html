@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>blinky1200 — a VCR puzzle</title>
+<meta name="description" content="Stop the clock that's been blinking 12:00 since 1987. A cute, cutthroat retro VCR puzzle in 11 levels.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📼</text></svg>">
+<!-- Open Graph / Facebook link preview. Adjust the two absolute URLs if your deploy URL differs. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="blinky1200">
+<meta property="og:title" content="blinky1200 — stop the blinking 12:00">
+<meta property="og:description" content="A cute, cutthroat retro VCR puzzle. 11 levels, 1986–1999. Can you make it stop blinking?">
+<meta property="og:url" content="https://blinky1200.pages.dev/">
+<meta property="og:image" content="https://blinky1200.pages.dev/card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="blinky1200 — stop the blinking 12:00">
+<meta name="twitter:description" content="A cute, cutthroat retro VCR puzzle. Can you make it stop blinking?">
+<meta name="twitter:image" content="https://blinky1200.pages.dev/card.png">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+/* ============ base ============ */
+* { margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-user-select:none; }
+html,body { height:100%; }
+:root{
+  --mono:"Courier New","Courier",monospace;
+  --plastic1:#2b2b2d; --plastic2:#161617; --plastic3:#0c0c0d;
+  --ink:#c9c2b4; --label:#8a8578;
+}
+body {
+  background:#0a0a0c;
+  background-image:radial-gradient(1000px 600px at 50% -10%, #17171c 0%, #0a0a0c 60%);
+  font-family:var(--mono); color:var(--ink);
+  padding:22px 14px 40px; min-height:100%;
+  image-rendering:pixelated;
+}
+#stage{
+  display:flex; flex-direction:column; gap:14px; align-items:stretch;
+  max-width:900px; margin:0 auto;
+}
+#left{ width:100%; display:flex; flex-direction:column; gap:12px; }
+
+/* ============ CLI console (right) ============ */
+#console{
+  width:100%;
+  background:#050806; border:2px solid #14140f;
+  border-radius:6px; padding:10px;
+  box-shadow:0 0 0 3px #000, 0 14px 30px rgba(0,0,0,.6), inset 0 0 0 2px #0c0f0b;
+  position:relative;
+}
+#console::before{ /* bezel label */
+  content:"► TERMINAL · CH 3"; position:absolute; top:-2px; left:14px; transform:translateY(-100%);
+  font-size:10px; letter-spacing:2px; color:#3a5f3a; background:#0a0a0c; padding:0 6px;
+}
+#screen{
+  position:relative; height:100%; min-height:300px; border-radius:4px; overflow:hidden;
+  background:#020402; cursor:pointer;
+  padding:16px 15px 34px;
+  transition:filter .3s;
+}
+#screen::after{ /* scanlines */
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:6;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.35) 0 1px, transparent 1px 3px);
+}
+#screen::before{ /* phosphor vignette */
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:5;
+  background:radial-gradient(120% 90% at 50% 40%, rgba(20,60,25,.18), transparent 70%);
+}
+body.on #screen.storm{ animation:stormflick 3.2s steps(1) infinite; }
+@keyframes stormflick{ 0%,96%{filter:none} 97%{filter:brightness(1.5)} 98%{filter:brightness(.5)} 99%{filter:brightness(1.3)} }
+#screen.flashlite{ animation:flit .5s ease 2; }
+@keyframes flit{ 0%,100%{filter:brightness(1)} 45%{filter:brightness(2)} }
+
+#osd{
+  position:relative; z-index:4; font-family:var(--mono); font-weight:bold;
+  color:#48e05a; font-size:14px; line-height:1.62; letter-spacing:.5px;
+  text-shadow:0 0 3px rgba(72,224,90,.35);
+  white-space:pre-wrap; word-break:break-word;
+}
+#osd .dim{ color:#2f8a3c; text-shadow:none; }
+#osd .big{ font-size:26px; letter-spacing:2px; color:#8fffa0; text-shadow:0 0 8px rgba(72,224,90,.6); }
+#osd .menu-line{ display:block; padding:2px 3px; border-radius:2px; cursor:pointer; }
+#osd .menu-line:hover{ background:rgba(72,224,90,.16); }
+#osd .menu-line.sel{ background:rgba(72,224,90,.12); }
+#osd .menu-line.sel::before{ content:"> "; }
+#osd .menu-line:not(.sel)::before{ content:"  "; }
+#osd::after{ content:"_"; animation:curBlink 1s steps(1) infinite; color:#48e05a; }
+@keyframes curBlink{ 0%,50%{opacity:1} 50.1%,100%{opacity:0} }
+#osdCorner{
+  position:absolute; z-index:4; right:12px; top:12px; text-align:right;
+  font-size:11px; color:#2f8a3c; line-height:1.5; opacity:.9;
+}
+#static{
+  position:absolute; inset:0; z-index:7; opacity:0; pointer-events:none; transition:opacity .2s;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(72,224,90,.5) 0 1px, transparent 1px 2px),
+    repeating-linear-gradient(90deg, rgba(180,255,180,.10) 0 2px, transparent 2px 4px);
+  background-size:100% 3px, 5px 100%;
+  animation:snow .1s steps(2) infinite; mix-blend-mode:screen;
+}
+@keyframes snow{ 0%{background-position:0 0,0 0} 100%{background-position:0 3px,4px 0} }
+#hintNudge{
+  position:absolute; left:15px; bottom:12px; z-index:4; font-size:12px; color:#c9a83c;
+  opacity:0; transition:opacity .8s; text-shadow:none;
+}
+#hintNudge.show{ opacity:.9; }
+/* non-blink mode: a STEADY (never-flashing) reminder — bottom-left, above the hint, clear of the remote */
+#blinkNote{ position:absolute; left:15px; bottom:34px; z-index:4; font-size:12px; color:#c9a83c;
+  opacity:0; pointer-events:none; }
+#blinkNote.show{ opacity:.85; }
+body:not(.on) #blinkNote{ display:none; }
+body.readable #blinkNote{ font-size:14px; }
+#credits{ position:absolute; inset:0; z-index:4; overflow:hidden; display:none; }
+#credits.show{ display:block; }
+#creditRoll{
+  position:absolute; left:0; right:0; top:100%; text-align:center;
+  color:#48e05a; font-size:14px; line-height:2; text-shadow:0 0 3px rgba(72,224,90,.4);
+  animation:roll 26s linear forwards;
+}
+@keyframes roll{ to{ transform:translateY(-170%); } }
+body:not(.on) #screen #osd,
+body:not(.on) #screen #osdCorner{ opacity:.06; }
+
+/* ============ VCR (left, the star) ============ */
+#vcr{
+  width:100%; position:relative;
+  background:linear-gradient(180deg,#2f2f31,#19191b 42%,#101012);
+  border-radius:10px; padding:16px 18px 18px;
+  border:1px solid #000;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10), inset 0 -8px 16px rgba(0,0,0,.6), 0 16px 34px rgba(0,0,0,.6);
+}
+#vcr::before,#vcr::after{ /* faux wood caps */
+  content:""; position:absolute; top:8px; bottom:8px; width:12px; border-radius:5px;
+  background:repeating-linear-gradient(96deg,#5c3c22 0 4px,#4a2f18 4px 7px,#6b4527 7px 12px);
+  box-shadow:inset 0 0 6px rgba(0,0,0,.6);
+}
+#vcr::before{ left:-6px; } #vcr::after{ right:-6px; }
+
+#vcrTop{ display:flex; gap:14px; align-items:flex-start; }
+/* cassette door — wide front-load slot, right-aligned */
+#tapeDoor{
+  flex:0 0 390px; margin-left:auto; position:relative; height:96px; border-radius:5px;
+  background:linear-gradient(180deg,#1a1a1a,#0d0d0d);
+  box-shadow:inset 0 2px 8px rgba(0,0,0,.9), inset 0 -1px 0 rgba(255,255,255,.05);
+}
+#tapeDoor .slot{ position:absolute; left:9px; right:9px; top:10px; height:11px; border-radius:2px;
+  background:linear-gradient(180deg,#000,#141414); box-shadow:inset 0 2px 5px #000; }
+#tapeDoor .doorline{ position:absolute; left:9px; right:9px; top:27px; bottom:10px; border-radius:3px;
+  background:repeating-linear-gradient(0deg,#131313 0 5px,#181818 5px 10px); box-shadow:inset 0 0 10px rgba(0,0,0,.8); }
+#tapeDoor .vhslogo{ position:absolute; right:10px; bottom:12px; font-size:9px; letter-spacing:2px; color:#7d7468; font-style:italic; font-weight:bold; z-index:1; }
+#cassette{
+  position:absolute; left:128px; top:5px; width:134px; height:82px;
+  background:linear-gradient(180deg,#2a2a2e,#131316); border:1px solid #000; border-radius:3px;
+  box-shadow:0 8px 16px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.1);
+  transform:translateY(6px) scale(.92); opacity:0; pointer-events:none;
+  transition:transform .45s cubic-bezier(.2,.9,.3,1.2), opacity .3s; z-index:30;
+}
+#cassette.out{ transform:translateY(-58px) scale(1); opacity:1; pointer-events:auto; cursor:pointer; }
+#cassette .spools{ position:absolute; left:10px; top:9px; right:10px; height:26px;
+  background:linear-gradient(180deg,#38383e,#202024); border-radius:3px; display:flex; justify-content:space-between; align-items:center; padding:0 8px; box-shadow:inset 0 0 8px #000; }
+#cassette .spool{ width:20px; height:20px; border-radius:50%;
+  background:radial-gradient(circle at 50% 50%, #cfc8bb 0 3px, #555 3px 6px, #29292e 6px 9px, #4b3a2a 9px 10px); border:2px solid #111; }
+#cassette .label{ position:absolute; left:9px; right:9px; bottom:6px; height:32px; border-radius:2px;
+  background:linear-gradient(180deg,#efe7d2,#e2d6b8); transform:rotate(-.8deg);
+  color:#4a3a86; font-family:var(--mono); font-weight:bold; font-size:10.5px; line-height:1.2;
+  padding:2px 6px; box-shadow:0 1px 3px rgba(0,0,0,.5); overflow:hidden; }
+#cassette .label::before{ content:""; position:absolute; left:0; right:0; top:0; height:4px;
+  background:repeating-linear-gradient(90deg,#d84f4f 0 12px,#4f63d8 12px 24px); opacity:.7; }
+
+/* VFD display */
+#displayBezel{
+  flex:0 0 auto; border-radius:6px; padding:6px 12px;
+  background:linear-gradient(180deg,#000,#080b0a);
+  box-shadow:inset 0 0 14px #000, 0 1px 0 rgba(255,255,255,.06);
+  display:flex; flex-direction:column; justify-content:center; align-items:center; gap:4px; position:relative;
+}
+#vfd{ display:flex; align-items:center; gap:5px; }
+.digit{ position:relative; width:23px; height:40px; }
+.seg{ position:absolute; background:#0a1310; border-radius:2px; opacity:.28; transition:opacity .06s, background .06s; }
+.seg.on{ background:#2a6a59; opacity:.46; box-shadow:none; }
+.seg.a{ left:3px; right:3px; top:0; height:3px; }
+.seg.d{ left:3px; right:3px; bottom:0; height:3px; }
+.seg.g{ left:3px; right:3px; top:18px; height:3px; }
+.seg.f{ left:0; top:2px; width:3px; height:16px; }
+.seg.b{ right:0; top:2px; width:3px; height:16px; }
+.seg.e{ left:0; bottom:2px; width:3px; height:16px; }
+.seg.c{ right:0; bottom:2px; width:3px; height:16px; }
+#colon{ display:flex; flex-direction:column; gap:8px; }
+#colon i{ width:4px; height:4px; border-radius:50%; background:#0a1310; opacity:.28; }
+#colon.on i{ background:#2a6a59; opacity:.46; box-shadow:none; }
+#colon.blink i{ animation:colonBlink 1.2s steps(1) infinite; }
+@keyframes colonBlink{ 0%,52%{opacity:.85} 52.1%,100%{opacity:.12} }
+#vfd.fullblink{ animation:vfdFull 1.25s ease-in-out infinite; }
+@keyframes vfdFull{ 0%,42%{opacity:1} 58%,100%{opacity:.14} }
+#meridiem{ display:flex; flex-direction:column; gap:4px; margin-left:2px; }
+#meridiem span{ font-size:9px; letter-spacing:1px; color:#0f2019; opacity:.6; }
+#meridiem span.on{ color:#37a082; opacity:1; }
+#indics{ display:flex; gap:8px; height:12px; }
+#indics span{ font-size:8px; letter-spacing:1px; color:#122019; opacity:.7; }
+#indics span.on{ color:#c9a83c; opacity:1; }
+#indics #inREC.on{ color:#d0604f; }
+#brandPlate{ flex:0 0 auto; margin-left:auto; align-self:center; text-align:right; padding-right:2px; }
+#brandPlate .b1{ font-size:13px; letter-spacing:2px; color:#bdb4a6; font-weight:bold; }
+#brandPlate .b2{ font-size:9px; letter-spacing:1px; color:#7d7468; margin-top:3px; }
+
+/* buttons */
+#vcrBottom{ display:flex; gap:12px; margin-top:14px; align-items:flex-start; flex-wrap:wrap; }
+.grpLabel{ font-size:8px; letter-spacing:2px; color:var(--label); text-align:center; margin-bottom:4px; }
+.btnGroup{ display:flex; gap:6px; align-items:flex-end; }
+.vbtn{ position:relative; min-width:50px; padding:8px 6px 7px; border-radius:4px; border:1px solid #000;
+  background:linear-gradient(180deg,#343436,#202022 45%,#171719);
+  box-shadow:0 3px 0 #050505, inset 0 1px 0 rgba(255,255,255,.14);
+  color:var(--ink); font-size:10px; letter-spacing:.5px; text-align:center; cursor:pointer; font-family:var(--mono); }
+.vbtn:active,.vbtn.pressed{ transform:translateY(2px); box-shadow:0 1px 0 #050505, inset 0 1px 0 rgba(255,255,255,.08); }
+.vbtn .glyph{ display:block; font-size:13px; line-height:1; margin-bottom:2px; color:#e6ddcd; }
+.vbtn .led{ position:absolute; top:3px; right:4px; width:5px; height:5px; border-radius:50%; background:#3a0d0d; }
+.vbtn .led.on{ background:#e0503f; box-shadow:0 0 5px #e0503f; }
+.vbtn.attn{ animation:attn 1.5s ease infinite; }
+@keyframes attn{ 0%,100%{box-shadow:0 3px 0 #050505} 50%{box-shadow:0 3px 0 #050505, 0 0 12px 1px rgba(72,224,90,.5)} }
+#powerBtn .led{ background:#0d3a12; }
+body.on #powerBtn .led{ background:#4ce05a; box-shadow:0 0 5px #4ce05a; }
+
+/* clock-set flap */
+#flap{ position:relative; }
+#flapInner{ display:flex; gap:6px; padding:5px; border-radius:5px; background:#0d0d0d; box-shadow:inset 0 0 8px #000; }
+#flapDoor{ position:absolute; inset:0; z-index:5; border-radius:5px; cursor:pointer;
+  background:linear-gradient(180deg,#242426,#141416); border:1px solid #000; box-shadow:inset 0 1px 0 rgba(255,255,255,.1);
+  display:flex; align-items:center; justify-content:center; color:#a89f90; font-size:10px; letter-spacing:2px;
+  transition:transform .4s ease, opacity .3s; transform-origin:bottom center; }
+#flap.open #flapDoor{ transform:rotateX(78deg) translateY(6px); opacity:0; pointer-events:none; }
+
+/* tracking / kidlock / batt */
+#trackingWrap{ display:flex; flex-direction:column; align-items:center; gap:4px; }
+#trackRow{ display:flex; align-items:center; gap:5px; }
+#trackDial{ width:48px; height:48px; border-radius:50%; cursor:grab; touch-action:none;
+  background:conic-gradient(from 0deg,#3a3a3a,#191919 25%,#3a3a3a 50%,#191919 75%,#3a3a3a);
+  border:2px solid #000; box-shadow:0 3px 6px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.18); position:relative; }
+#trackDial::before{ content:""; position:absolute; left:50%; top:3px; width:3px; height:12px; margin-left:-1.5px;
+  border-radius:2px; background:#ccc; transform-origin:1.5px 21px; }
+#trackDial.hot::before{ background:#4ce05a; box-shadow:0 0 6px rgba(72,224,90,.9); }
+.trackStep{ width:20px; height:20px; border-radius:3px; background:#1b1b1b; border:1px solid #000; color:var(--ink);
+  font-size:11px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 0 #050505; }
+.trackStep:active{ transform:translateY(1px); box-shadow:0 1px 0 #050505; }
+#kidlock{ display:flex; flex-direction:column; align-items:center; gap:4px; }
+#kidSwitch{ width:30px; height:16px; border-radius:8px; background:#111; border:1px solid #000; position:relative; box-shadow:inset 0 1px 4px #000; cursor:pointer; }
+#kidSwitch .nub{ position:absolute; top:2px; left:2px; width:11px; height:11px; border-radius:50%; background:linear-gradient(180deg,#777,#333); transition:left .2s; }
+#kidSwitch.on .nub{ left:15px; background:linear-gradient(180deg,#e0805a,#a03020); box-shadow:0 0 6px rgba(224,90,60,.7); }
+#battDoor{ display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
+#battHatch{ width:40px; height:24px; border-radius:3px; background:linear-gradient(180deg,#222,#131313); border:1px solid #000; box-shadow:inset 0 1px 0 rgba(255,255,255,.08); position:relative; overflow:hidden; }
+#battHatch .inner{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:3px; background:#080808; opacity:0; transition:opacity .3s; font-size:9px; color:var(--label); }
+#battHatch.open .inner{ opacity:1; }
+.aabatt{ width:7px; height:16px; border-radius:1px; background:linear-gradient(180deg,#c2a04a 0 30%,#2c2c2c 30%); position:relative; }
+.aabatt::before{ content:""; position:absolute; top:-2px; left:2px; right:2px; height:2px; background:#888; border-radius:1px; }
+
+/* junk drawer — sits under the VCR in the left column */
+#drawer{ width:100%; position:relative;
+  background:linear-gradient(180deg,#242426,#141416); border:1px solid #000; border-radius:6px;
+  padding:8px 12px; cursor:pointer; box-shadow:0 8px 18px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
+  transition:padding .3s; }
+#drawer .drawerTop{ display:flex; align-items:center; justify-content:space-between; font-size:10px; letter-spacing:2px; color:var(--label); }
+#drawer .knob{ width:34px; height:7px; border-radius:4px; background:linear-gradient(180deg,#8c6a3f,#5c4526); }
+#drawerStuff{ display:none; margin-top:8px; font-size:12px; color:#b6ad9c; line-height:1.5; }
+#drawer.open #drawerStuff{ display:block; }
+#batteriesItem{ color:#6ce07a; cursor:pointer; text-decoration:underline; font-size:13px; }
+
+/* remote */
+#remote{ position:fixed; right:16px; bottom:-360px; width:150px; z-index:40;
+  background:linear-gradient(180deg,#2b2b2f,#18181b 70%,#111114); border-radius:14px 14px 20px 20px;
+  padding:12px 10px 16px; border:1px solid #000; box-shadow:0 14px 28px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.12);
+  transform:rotate(-3deg); transition:bottom .6s cubic-bezier(.2,.8,.3,1.1); }
+#remote.in{ bottom:22px; }
+#remote .rlabel{ text-align:center; font-size:8px; letter-spacing:2px; color:var(--label); margin-bottom:7px; }
+#rpad{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.rbtn{ padding:8px 0; border-radius:7px; background:linear-gradient(180deg,#3f3f45,#26262b); border:1px solid #000;
+  color:#e6ddcd; font-size:13px; text-align:center; cursor:pointer; box-shadow:0 2px 0 #000, inset 0 1px 0 rgba(255,255,255,.16); font-family:var(--mono); }
+.rbtn:active{ transform:translateY(1px); box-shadow:0 1px 0 #000; }
+.rbtn.wide{ grid-column:span 3; background:linear-gradient(180deg,#4a3f26,#2b2416); color:#c9a83c; letter-spacing:2px; }
+.rbtn.half{ grid-column:span 1; font-size:10px; }
+
+/* manual scrap */
+#manual{ position:fixed; left:12px; top:66px; width:224px; z-index:38; padding:14px 12px 18px;
+  background:linear-gradient(180deg,#f2efe6,#e6e1d1); color:#222; transform:rotate(-2.2deg);
+  font-family:var(--mono); font-size:11.5px; line-height:1.55; box-shadow:0 12px 24px rgba(0,0,0,.55);
+  clip-path:polygon(0 2%,4% 0,96% 1%,100% 4%,99% 96%,94% 100%,5% 99%,0 95%); display:none; }
+#manual.show{ display:block; }
+#manual h4{ font-size:10px; letter-spacing:1px; border-bottom:1px solid #999; padding-bottom:4px; margin-bottom:7px; }
+#manual .code{ font-weight:bold; font-size:12px; letter-spacing:1px; }
+
+/* misc */
+#topBtns{ position:fixed; right:12px; top:12px; z-index:50; display:flex; gap:6px; }
+#topBtns button{ background:#161617; color:var(--label);
+  border:1px solid #333; border-radius:4px; font-size:10px; letter-spacing:2px; padding:4px 9px; cursor:pointer; font-family:var(--mono); }
+#muteBtn.muted{ color:#e0805a; }
+#blinkBtn.on{ color:#4ce05a; border-color:#2c8168; }
+#readBtn.on{ color:#4ce05a; border-color:#2c8168; }
+/* READABLE: high-contrast, larger text, scanlines off — an accessibility mode */
+body.readable #screen::after{ display:none; }
+body.readable #screen{ overflow-y:auto; }
+body.readable #osd{ font-size:19px; line-height:1.5; color:#86ff92; text-shadow:none; }
+body.readable #osd .dim{ color:#57cf67; }
+body.readable #osd .big{ font-size:30px; color:#b6ffbf; }
+body.readable #osd::after{ color:#86ff92; }
+body.readable #osdCorner{ font-size:14px; color:#57cf67; opacity:1; }
+body.readable #hintNudge{ font-size:15px; color:#ffcf5a; opacity:1; }
+body.readable #console::before{ color:#57cf67; }
+body.readable .grpLabel{ font-size:11px; color:#c9bfa8; }
+body.readable .vbtn{ font-size:12px; }
+body.readable .vbtn .glyph{ font-size:16px; }
+body.readable #indics span{ font-size:10px; }
+body.readable #meridiem span{ font-size:12px; }
+body.readable #brandPlate .b1{ font-size:16px; }
+body.readable #brandPlate .b2{ font-size:11px; }
+body.readable #manual{ font-size:13.5px; }
+body.readable #manual .code{ font-size:14px; }
+body.readable #drawerLabel, body.readable #drawerText{ font-size:14px; }
+body.readable #topBtns button{ font-size:12px; }
+/* practice-mode UNDO button — big, obvious, bottom-left (opposite the remote) */
+#undoBtn{ position:fixed; left:18px; bottom:22px; z-index:45; cursor:pointer; font-family:var(--mono);
+  background:linear-gradient(180deg,#2a4a2c,#16301a); color:#8fffa0; border:1px solid #0a1a0c;
+  border-radius:10px; padding:12px 18px; font-size:17px; letter-spacing:2px; font-weight:bold;
+  box-shadow:0 4px 0 #081206, inset 0 1px 0 rgba(255,255,255,.15); }
+#undoBtn:active{ transform:translateY(3px); box-shadow:0 1px 0 #081206, inset 0 1px 0 rgba(255,255,255,.1); }
+
+/* share overlay */
+#shareOverlay{ position:fixed; inset:0; z-index:120; background:rgba(0,0,0,.72);
+  display:flex; align-items:center; justify-content:center; padding:18px; }
+#shareCard{ width:min(430px,100%); max-height:92vh; overflow-y:auto; background:#0b0f0c; border:2px solid #14140f; border-radius:10px;
+  padding:18px 18px 16px; box-shadow:0 20px 50px rgba(0,0,0,.7), inset 0 0 0 2px #0c120b; font-family:var(--mono); color:#48e05a; }
+#shareTitle{ font-weight:bold; letter-spacing:2px; font-size:15px; margin-bottom:6px; }
+#shareMsg{ font-size:12.5px; color:#57cf67; line-height:1.5; margin-bottom:14px; }
+#shareGrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
+.shareItem{ display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px; border-radius:8px; cursor:pointer;
+  background:#141a14; border:1px solid #223022; color:#cfe0cf; font-size:9.5px; letter-spacing:.3px; text-align:center; }
+.shareItem:hover{ background:#1c2a1c; }
+.shareItem .ic{ font-size:21px; line-height:1; }
+#shareLinkRow{ display:flex; gap:6px; margin-bottom:12px; }
+#shareLinkInput{ flex:1; min-width:0; background:#050806; border:1px solid #223022; color:#7fdf8f; font-family:var(--mono); font-size:11px; padding:7px 8px; border-radius:6px; }
+#shareCopyBtn{ background:#2a4a2c; color:#8fffa0; border:1px solid #0a1a0c; border-radius:6px; padding:0 12px; font-family:var(--mono); font-size:11px; letter-spacing:1px; cursor:pointer; }
+#shareClose{ width:100%; background:#161617; color:var(--label); border:1px solid #333; border-radius:6px; padding:8px; font-family:var(--mono); letter-spacing:2px; font-size:11px; cursor:pointer; }
+body.readable #shareMsg{ font-size:14px; } body.readable .shareItem{ font-size:11px; }
+
+.hidden{ display:none !important; }
+
+/* rotate-your-phone gate (portrait phones only) */
+#rotate{ display:none; }
+@media (orientation:portrait) and (max-width:640px){
+  #rotate{ display:flex; position:fixed; inset:0; z-index:200;
+    flex-direction:column; align-items:center; justify-content:center; gap:20px;
+    background:#050806; color:#48e05a; font-family:var(--mono); text-align:center; padding:26px; }
+  #rotate::before{ content:""; position:absolute; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.35) 0 1px, transparent 1px 3px); }
+  #rotate .ico{ font-size:66px; line-height:1; animation:rotPhone 2.4s ease-in-out infinite; }
+  #rotate .l1{ font-size:18px; font-weight:bold; letter-spacing:1px; text-shadow:0 0 3px rgba(72,224,90,.4); }
+  #rotate .l2{ font-size:15px; font-weight:bold; color:#37c04a; }
+  #rotate .l3{ font-size:12px; color:#2f8a3c; margin-top:4px; }
+  #stage,#topBtns,#remote,#manual{ display:none !important; }
+  body{ overflow:hidden; }
+}
+@keyframes rotPhone{ 0%,35%{transform:rotate(0)} 55%,100%{transform:rotate(-90deg)} }
+
+@media (max-width:560px){
+  #screen{ min-height:240px; }
+  #vcrTop{ flex-wrap:wrap; }
+  #tapeDoor{ flex:1 1 100%; margin-left:0; }
+  #cassette{ left:calc(50% - 67px); }
+  #remote{ right:6px; width:132px; }
+  #manual{ position:static; margin:10px auto; transform:rotate(-1deg); }
+}
+</style>
+</head>
+<body>
+<div id="topBtns">
+  <button id="shareBtn" title="share blinky1200">⤴ SHARE</button>
+  <button id="readBtn" title="high-contrast large text">READABLE</button>
+  <button id="langBtn" title="language / ภาษา">ภาษาไทย</button>
+  <button id="blinkBtn" title="full-blink display">BLINK: OFF</button>
+  <button id="muteBtn" title="mute">SOUND</button>
+</div>
+
+<div id="shareOverlay" class="hidden">
+  <div id="shareCard">
+    <div id="shareTitle">SHARE blinky1200</div>
+    <div id="shareMsg"></div>
+    <div id="shareGrid"></div>
+    <div id="shareLinkRow"><input id="shareLinkInput" readonly><button id="shareCopyBtn">COPY</button></div>
+    <button id="shareClose">CLOSE</button>
+  </div>
+</div>
+
+<div id="rotate">
+  <div class="ico">📱</div>
+  <div class="l1">TURN YOUR PHONE SIDEWAYS</div>
+  <div class="l2">พลิกโทรศัพท์เป็นแนวนอน</div>
+  <div class="l3">blinky1200 is a wide machine · เครื่องนี้จอกว้าง</div>
+</div>
+
+<div id="stage">
+  <div id="left">
+  <div id="vcr">
+    <div id="vcrTop">
+      <div id="displayBezel">
+        <div id="vfd" class="flash">
+          <div class="digit" id="d0"></div>
+          <div class="digit" id="d1"></div>
+          <div id="colon" class="on"><i></i><i></i></div>
+          <div class="digit" id="d2"></div>
+          <div class="digit" id="d3"></div>
+          <div id="meridiem"><span id="mAM">AM</span><span id="mPM">PM</span></div>
+        </div>
+        <div id="indics">
+          <span id="inCLK">CLOCK</span><span id="inTRK">TRACK</span><span id="inSVC">SVC</span><span id="inBAT">BATT</span><span id="inREC">●REC</span>
+        </div>
+      </div>
+      <div id="brandPlate">
+        <div class="b1">blinky1200</div>
+        <div class="b2">MODEL 1200-β<br>BETA HiFi</div>
+      </div>
+      <div id="tapeDoor">
+        <div id="cassette" aria-label="hint cassette">
+          <div class="spools"><div class="spool"></div><div class="spool"></div></div>
+          <div class="label" id="cassLabel">home movies '87</div>
+        </div>
+        <div class="slot"></div>
+        <div class="doorline"></div>
+        <div class="vhslogo">βETA · HQ</div>
+      </div>
+    </div>
+
+    <div id="vcrBottom">
+      <div>
+        <div class="grpLabel">POWER</div>
+        <div class="btnGroup"><button class="vbtn" id="powerBtn" data-k="POWER"><span class="glyph">⏻</span>POWER<span class="led"></span></button></div>
+      </div>
+      <div>
+        <div class="grpLabel">TRANSPORT</div>
+        <div class="btnGroup">
+          <button class="vbtn" data-k="EJECT"><span class="glyph">⏏</span>EJECT</button>
+          <button class="vbtn" data-k="REW"><span class="glyph">◀◀</span>REW</button>
+          <button class="vbtn" data-k="PLAY"><span class="glyph">▶</span>PLAY</button>
+          <button class="vbtn" data-k="FF"><span class="glyph">▶▶</span>FFWD</button>
+          <button class="vbtn" data-k="STOP"><span class="glyph">■</span>STOP</button>
+          <button class="vbtn" data-k="PAUSE"><span class="glyph">❙❙</span>PAUSE</button>
+          <button class="vbtn" data-k="REC"><span class="glyph">●</span>REC<span class="led" id="recLed"></span></button>
+        </div>
+      </div>
+      <div>
+        <div class="grpLabel">CHANNEL</div>
+        <div class="btnGroup">
+          <button class="vbtn" data-k="CHDN"><span class="glyph">▽</span>CH−</button>
+          <button class="vbtn" data-k="CHUP"><span class="glyph">△</span>CH+</button>
+        </div>
+      </div>
+      <div id="flap">
+        <div class="grpLabel">CLOCK SET</div>
+        <div id="flapInner" class="btnGroup">
+          <button class="vbtn" data-k="CLOCK">CLOCK</button>
+          <button class="vbtn" data-k="HOUR">HOUR</button>
+          <button class="vbtn" data-k="MIN">MIN</button>
+        </div>
+        <div id="flapDoor">▼ PULL OPEN</div>
+      </div>
+      <div id="trackingWrap">
+        <div class="grpLabel">TRACKING</div>
+        <div id="trackRow">
+          <button class="trackStep" data-t="-1">−</button>
+          <div id="trackDial" aria-label="tracking dial"></div>
+          <button class="trackStep" data-t="1">+</button>
+        </div>
+      </div>
+      <div id="kidlock">
+        <div class="grpLabel">KID LOCK</div>
+        <div id="kidSwitch"><div class="nub"></div></div>
+      </div>
+      <div id="battDoor">
+        <div class="grpLabel">BATT</div>
+        <div id="battHatch"><div class="inner" id="battInner"><span id="battEmpty">dust</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="drawer" aria-label="junk drawer">
+    <div class="drawerTop"><span id="drawerLabel">▚ JUNK DRAWER</span><span class="knob"></span></div>
+    <div id="drawerStuff"><span id="drawerText">rubber bands. takeout menus. one chopstick.</span><br>
+      <span id="batteriesItem" class="hidden">✦ two AA batteries ✦</span></div>
+  </div>
+  </div><!-- /left -->
+
+  <div id="console">
+    <div id="screen">
+      <div id="osdCorner"></div>
+      <div id="osd"></div>
+      <div id="hintNudge">STUCK? PRESS EJECT FOR A HINT.</div>
+      <div id="blinkNote"></div>
+      <div id="static"></div>
+      <div id="credits"><div id="creditRoll"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="remote">
+  <div class="rlabel">REMOTE COMMANDER</div>
+  <div id="rpad">
+    <button class="rbtn" data-r="1">1</button><button class="rbtn" data-r="2">2</button><button class="rbtn" data-r="3">3</button>
+    <button class="rbtn" data-r="4">4</button><button class="rbtn" data-r="5">5</button><button class="rbtn" data-r="6">6</button>
+    <button class="rbtn" data-r="7">7</button><button class="rbtn" data-r="8">8</button><button class="rbtn" data-r="9">9</button>
+    <button class="rbtn half" data-r="AMPM">AM/PM</button><button class="rbtn" data-r="0">0</button><button class="rbtn half" data-r="CLR">RESET</button>
+    <button class="rbtn wide" data-r="ENTER">ENTER</button>
+  </div>
+</div>
+
+<div id="manual">
+  <h4 id="manTitle">SERVICE MANUAL — p.34</h4>
+  <div id="manBody"></div>
+</div>
+
+<button id="undoBtn" class="hidden" title="undo — practice mode">↶ UNDO</button>
+
+<script>
+"use strict";
+/* ================================================================
+   BLINKING 12 — a VCR puzzle in 11 levels
+   one file, no dependencies. progress saved in localStorage.
+   debug: b12.skip(n), b12.win(), b12.state, b12.wipe()
+================================================================ */
+const $$ = s => [...document.querySelectorAll(s)];
+const el = id => document.getElementById(id);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const pad2 = n => String(n).padStart(2,"0");
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- audio (soft) ---------- */
+const AudioFX = (() => {
+  let ctx=null, master=null, muted=false, whirNode=null, staticNode=null, staticGain=null;
+  function ensure(){
+    if(!ctx){ ctx = new (window.AudioContext||window.webkitAudioContext)();
+      master = ctx.createGain(); master.gain.value = 0.12; master.connect(ctx.destination); }
+    if(ctx.state==="suspended") ctx.resume();
+    return ctx;
+  }
+  function noiseBuf(sec){ const c=ensure(), b=c.createBuffer(1,c.sampleRate*sec,c.sampleRate);
+    const d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; return b; }
+  function env(g,t,a,peak,dur){ g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(peak,t+a);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur); }
+  function tone(freq,dur,peak,type){ if(muted) return; const c=ensure(), t=c.currentTime;
+    const o=c.createOscillator(), g=c.createGain(); o.type=type||"sine"; o.frequency.value=freq;
+    o.connect(g); g.connect(master); env(g,t,0.006,peak,dur); o.start(t); o.stop(t+dur+0.02); }
+  return {
+    get muted(){ return muted; },
+    setMuted(m){ muted=m; if(m){ this.whirStop(); this.staticLevel(0); } },
+    unlock(){ ensure(); },
+    click(){ if(muted) return; const c=ensure(), t=c.currentTime;
+      const s=c.createBufferSource(); s.buffer=noiseBuf(0.03);
+      const f=c.createBiquadFilter(); f.type="lowpass"; f.frequency.value=1400;
+      const g=c.createGain(); s.connect(f); f.connect(g); g.connect(master);
+      env(g,t,0.002,0.35,0.03); s.start(t); tone(360,0.02,0.05,"sine"); },
+    deadClick(){ tone(150,0.05,0.08,"sine"); },
+    beep(){ tone(560,0.014,0.022,"sine"); },      // typewriter tick, very soft
+    thunk(){ if(muted) return; const c=ensure(), t=c.currentTime;
+      const o=c.createOscillator(), g=c.createGain(); o.type="sine";
+      o.frequency.setValueAtTime(80,t); o.frequency.exponentialRampToValueAtTime(38,t+0.15);
+      o.connect(g); g.connect(master); env(g,t,0.006,0.5,0.18); o.start(t); o.stop(t+0.22); },
+    buzz(){ if(muted) return; tone(150,0.16,0.16,"triangle"); setTimeout(()=>tone(120,0.18,0.14,"triangle"),150); },
+    chime(){ if(muted) return; [660,880,1100].forEach((f,i)=>setTimeout(()=>tone(f,0.16,0.10,"sine"),i*95)); },
+    grandChime(){ if(muted) return; [659,880,1109,1319,1760].forEach((f,i)=>setTimeout(()=>tone(f,0.26,0.10,"sine"),i*140)); },
+    whirStart(fast){ if(muted) return; const c=ensure(); this.whirStop();
+      const s=c.createBufferSource(); s.buffer=noiseBuf(1); s.loop=true;
+      const f=c.createBiquadFilter(); f.type="bandpass"; f.frequency.value=fast?900:560; f.Q.value=1.4;
+      const g=c.createGain(); g.gain.value=0.06; s.connect(f); f.connect(g); g.connect(master); s.start();
+      whirNode={s,g}; },
+    whirStop(){ if(whirNode){ try{whirNode.s.stop();}catch(e){} whirNode=null; } },
+    staticLevel(v){ if(muted) v=0; const c=ensure();
+      if(v>0 && !staticNode){ const s=c.createBufferSource(); s.buffer=noiseBuf(1.2); s.loop=true;
+        const f=c.createBiquadFilter(); f.type="highpass"; f.frequency.value=1100;
+        staticGain=c.createGain(); staticGain.gain.value=0; s.connect(f); f.connect(staticGain); staticGain.connect(master); s.start(); staticNode=s; }
+      if(staticGain) staticGain.gain.linearRampToValueAtTime(v*0.12, c.currentTime+0.15);
+      if(v===0 && staticNode){ const n=staticNode; staticNode=null; staticGain=null; setTimeout(()=>{try{n.stop();}catch(e){}},300); } },
+  };
+})();
+
+/* ---------- seven-segment ---------- */
+const SEGMAP={ "0":"abcdef","1":"bc","2":"abged","3":"abgcd","4":"fgbc","5":"afgcd","6":"afgcde","7":"abc","8":"abcdefg","9":"abcfgd"," ":"","-":"g","S":"afgcd","V":"bcdef","C":"afed","E":"afged","r":"eg" };
+const digitEls=[];
+function buildDigits(){ ["d0","d1","d2","d3"].forEach(id=>{ const host=el(id); host.innerHTML="";
+  const segs={}; "abcdefg".split("").forEach(k=>{ const s=document.createElement("div"); s.className="seg "+k; host.appendChild(s); segs[k]=s; }); digitEls.push(segs); }); }
+function setDigit(i,ch){ const lit=SEGMAP[ch]??""; const segs=digitEls[i]; "abcdefg".split("").forEach(k=>segs[k].classList.toggle("on",lit.includes(k))); }
+function showChars(c0,c1,c2,c3){ setDigit(0,c0); setDigit(1,c1); setDigit(2,c2); setDigit(3,c3); }
+
+/* ---------- global leaderboard (optional) ----------
+   Paste your deployed Cloudflare Worker URL here (no trailing slash) to make the
+   Hall of Fame a global, server-scored, solve-ORDER board. Leave "" to keep a
+   local board in this browser. Deploy steps: worker/README.md                    */
+const LEADERBOARD_URL = "";
+const SERIES = "S1";   // the current game series — new series reopens the race
+const SHARE_URL = "";  // optional canonical URL to share; defaults to this page (or blinky1200.pages.dev if opened from a file)
+
+/* ---------- state ---------- */
+const SAVE_KEY="blink12_v1";
+const G={
+  screen:"off", level:1, mode:"normal", lang:"en",
+  clock:{ min:0, set:false, inSetMode:false },
+  entry:[], mistakes:0, hintsUsed:0,
+  splits:[], visAccum:0, visBase:0,
+  garble:0, trackVal:30, trackSweet:64, trackSpread:22, trackLockT:0, trackingActive:false, trackLocked:false,
+  seq:[], seqTarget:null, seqPhase:false, phase:0,
+  kidLock:false, batteries:false, battInstalled:false,
+  garbleTimer:null, menuSel:0, menuItems:[],
+  initials:["A","A","A"], initSlot:0,
+  board:null, total:0, runToken:null, solved:[], selfBot:false, lastResult:null,
+  easy:false, lives:3, undoStack:[],
+  save:{ unlockSpeedrun:false, unlockSnow:false, leaderboard:[], reached:1, muted:false, fullBlink:true, lang:"en", readable:false },
+};
+function persist(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(G.save)); }catch(e){} }
+function loadSave(){ try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)); if(s) Object.assign(G.save,s); }catch(e){} }
+// Founding entries — first to solve Series S1. Coin flip (2026-07-23): HUN #1, NAN #2.
+const FOUNDERS=[
+  { rank:1, name:"HUN", kind:"human", founder:true, mode:"speedrun", when:"2026-07-23" },
+  { rank:2, name:"NAN", kind:"human", founder:true, mode:"normal",   when:"2026-07-23" },
+];
+function seedFounders(){
+  // migrate: drop pre-solve-order entries (no numeric rank) and stale founder rows
+  G.save.leaderboard=(G.save.leaderboard||[]).filter(r=> r && typeof r.rank==="number" && r.name && !r.founder);
+  FOUNDERS.forEach(f=>{ if(!G.save.leaderboard.some(r=>r.founder && r.name===f.name)) G.save.leaderboard.push(Object.assign({},f)); });
+  G.save.leaderboard.sort((a,b)=>a.rank-b.rank); persist();
+}
+function localBoard(){ return G.save.leaderboard.slice().filter(r=>typeof r.rank==="number").sort((a,b)=>a.rank-b.rank); }
+// Server calls — all best-effort; any failure falls back to the local board.
+async function startServerRun(){
+  G.runToken=null; G.solved=[];
+  if(!LEADERBOARD_URL) return;
+  try{
+    const c=new AbortController(); const to=setTimeout(()=>c.abort(),4500);
+    const res=await fetch(LEADERBOARD_URL+"/start",{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({series:SERIES}), signal:c.signal });
+    clearTimeout(to); if(!res.ok) return; const d=await res.json(); if(d.token) G.runToken=d.token;
+  }catch(e){}
+}
+async function fetchGlobal(){
+  if(!LEADERBOARD_URL) return null;
+  try{
+    const c=new AbortController(); const to=setTimeout(()=>c.abort(),4500);
+    const res=await fetch(LEADERBOARD_URL+"/scores?series="+encodeURIComponent(SERIES),{signal:c.signal}); clearTimeout(to);
+    if(!res.ok) return null; const d=await res.json();
+    if(Array.isArray(d.scores)){ G.total=d.total||d.scores.length; return d.scores; }
+    return null;
+  }catch(e){ return null; }
+}
+async function submitFinish(name){
+  if(!LEADERBOARD_URL || !G.runToken) return null;
+  try{
+    const res=await fetch(LEADERBOARD_URL+"/finish",{ method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ token:G.runToken, name, mode:G.mode, lang:G.lang, bot:!!G.selfBot, solution:G.solved }) });
+    return await res.json();
+  }catch(e){ return null; }
+}
+async function refreshBoard(){ const g=await fetchGlobal(); if(g){ G.board=g; if(G.screen==="fame") showFame(); } }
+function badgeFor(r){ return r.founder?"◆":r.kind==="bot"?"🤖":r.kind==="squirrel"?"🐿":" "; }
+
+/* ---------- clock ---------- */
+function minToHM(min){ min=((min%1440)+1440)%1440; const h24=Math.floor(min/60), m=min%60;
+  const pm=h24>=12; let h12=h24%12; if(h12===0) h12=12; return {h12,m,pm}; }
+function fmt(min){ const t=minToHM(min); return `${t.h12}:${pad2(t.m)} ${t.pm?"PM":"AM"}`; }
+function renderClock(){
+  if(G.garble>0) return;
+  const t=minToHM(G.clock.min); const hs=String(t.h12);
+  showChars(hs.length>1?hs[0]:" ", hs[hs.length-1], String(Math.floor(t.m/10)), String(t.m%10));
+  el("mAM").classList.toggle("on",!t.pm); el("mPM").classList.toggle("on",t.pm);
+  const unset=!G.clock.set;
+  el("colon").classList.remove("blink");
+  el("vfd").classList.toggle("fullblink", unset && G.save.fullBlink);       // default: whole 12:00 blinks
+  el("blinkNote").classList.toggle("show", unset && !G.save.fullBlink);     // non-blink mode: steady CLI reminder
+  el("inCLK").classList.toggle("on", G.clock.inSetMode);
+}
+function resetClockFlashing(){ G.clock.min=0; G.clock.set=false; G.clock.inSetMode=false; G.entry=[]; renderClock(); }
+
+/* ---------- garble ---------- */
+function setGarble(amount){
+  G.garble=clamp(amount,0,1);
+  el("static").style.opacity = G.garble>0 ? String(0.2+G.garble*0.7) : "0";
+  AudioFX.staticLevel(G.garble);
+  el("inTRK").classList.toggle("on", G.garble>0.02);
+  if(G.garble>0 && !G.garbleTimer){
+    G.garbleTimer=setInterval(()=>{ const t=minToHM(G.clock.min);
+      const chars=[String(t.h12).padStart(2," ")[0],String(t.h12).padStart(2," ")[1],String(Math.floor(t.m/10)),String(t.m%10)];
+      for(let i=0;i<4;i++){ if(Math.random()<G.garble){ const segs=digitEls[i];
+        "abcdefg".split("").forEach(k=>segs[k].classList.toggle("on",Math.random()<0.45)); } else setDigit(i,chars[i]); }
+    },90);
+  } else if(G.garble===0 && G.garbleTimer){ clearInterval(G.garbleTimer); G.garbleTimer=null; renderClock(); }
+}
+
+/* ---------- OSD ---------- */
+let typeToken=0;
+async function osd(lines,opts={}){
+  const token=++typeToken; const box=el("osd"); box.innerHTML="";
+  el("hintNudge").classList.remove("show");
+  const arr=Array.isArray(lines)?lines:[lines];
+  for(const line of arr){ if(token!==typeToken) return;
+    const div=document.createElement("div"); if(line.cls) div.className=line.cls; box.appendChild(div);
+    const text=typeof line==="string"?line:line.t;
+    for(let i=0;i<text.length;i++){ if(token!==typeToken) return; div.textContent=text.slice(0,i+1);
+      if(i%4===0) AudioFX.beep();
+      if(!opts.instant && G.mode!=="speedrun") await sleep(12); }
+    if(!opts.instant && G.mode!=="speedrun") await sleep(80);
+  }
+}
+function osdAppend(text,cls){ const div=document.createElement("div"); if(cls) div.className=cls; div.textContent=text; el("osd").appendChild(div); return div; }
+function corner(html){ el("osdCorner").innerHTML=html; }
+
+/* ---------- levels ----------
+   Ordered by difficulty (a power ramp), NOT by year. Each level's year badge
+   matches the real VCR era whose clock-set quirk it dramatizes. The blinking-12
+   plague was worst in the late '80s, so those decks are the hardest (L8-L11).
+   Config flags drive the engine: remote / reset / hourDead / tracking(sweetSpot)
+   / code(transport sequence) / storm / oneShot / noHint.
+   CODE = the service sequence; PREMIERE = the finale's revealed sequence.       */
+const CODE=["REW","REW","FF","FF","PLAY","PAUSE","PLAY","PAUSE","REC"];
+const PREMIERE=["FF","FF","REW","REW","PLAY","REC"];
+function T(h12,m,pm){ let h=h12%12; if(pm) h+=12; return h*60+m; }
+const LEVELS=[
+{ n:1, year:1999, target:T(3,0,false), remote:true, reset:true,
+  intro:[ "1999. THE NEWEST DECK IN THE HOUSE.", "ITS REMOTE HAS NUMBER KEYS.", "THE CLOCK BLINKS 12:00. MAKE IT STOP.", "", {t:"① PRESS RESET ON THE REMOTE",cls:"dim"}, {t:"② TYPE  3 0 0",cls:"dim"}, {t:"③ PRESS ENTER",cls:"dim"}, "", "SET IT TO 3:00 AM — STOP THE BLINK." ],
+  hint:"on the remote: RESET, then 3 0 0, then ENTER.\nthat's the whole trick.",
+  win:"NO MORE BLINK. THE EASY ONE IS DONE." },
+{ n:2, year:1996, target:T(8,30,true), remote:true,
+  intro:[ "1996. SAME KIND OF REMOTE,", "ONE NEW WRINKLE: A DOT FOR AM/PM.", "THE BLINK DOESN'T CARE. KILL IT ANYWAY.", "", "TYPE THE TIME, PRESS AM/PM FOR THE DOT,", "THEN ENTER.", "", "SET THE CLOCK TO 8:30 PM." ],
+  hint:"type 8 3 0, press AM/PM until the dot reads PM,\nthen ENTER.",
+  win:"PM: THE DOT OF EVENING. BLINK GONE." },
+{ n:3, year:1994, target:T(10,45,false),
+  intro:[ "1994. NO REMOTE FOR THIS ONE.", "YOU DO IT BY THE BOOK — THE ACTUAL", "STEPS FROM THE OWNER'S MANUAL:", "", {t:"① OPEN THE 'CLOCK SET' DOOR",cls:"dim"}, {t:"② PRESS CLOCK TO BEGIN",cls:"dim"}, {t:"③ PRESS HOUR TO ADVANCE THE HOUR",cls:"dim"}, {t:"④ PRESS MIN TO ADVANCE THE MINUTES",cls:"dim"}, {t:"⑤ PRESS CLOCK AGAIN TO SAVE",cls:"dim"}, "", "SET THE CLOCK TO 10:45 AM." ],
+  hint:"CLOCK, tap HOUR to 10, tap MIN to 45,\nthen CLOCK to lock. straight from the manual.",
+  win:"BY THE BOOK. NO MORE BLINKING 12." },
+{ n:4, year:1993, target:T(9,15,true), tracking:64,
+  intro:[ "1993. THIS MODEL SETS ITSELF —", "IT READS THE TIME OFF THE TV SIGNAL.", "BUT THE SIGNAL IS PURE SNOW.", "", "TURN THE TRACKING DIAL UNTIL THE", "BROADCAST TIME COMES IN CLEAR,", "THEN SAVE IT." ],
+  hint:"drag the silver dial slowly; the snow quiets\nnear the sweet spot. the − and + nudge it too.",
+  win:"SIGNAL LOCKED. THE CLOCK SET ITSELF. NO BLINK." },
+{ n:5, year:1992, target:T(11,57,true),
+  intro:[ "1992. FRONT PANEL ONLY,", "AND AN UGLY TARGET.", "TAP-TAP-TAPPING WILL TAKE ALL NIGHT.", "", {t:"HOLD a button DOWN — IT SPEEDS UP.",cls:"dim"}, "", "SET THE CLOCK TO 11:57 PM.", "MIND THE DOT. STOP THE BLINK." ],
+  hint:"hold HOUR and MIN to fly. PM is past 12.\nease off just before 57.",
+  win:"57 TAPS AVOIDED. THE BLINK SURRENDERS." },
+{ n:6, year:1991, target:T(2,30,false), hourDead:true,
+  intro:[ "1991. THIS DECK IS TIRED.", "THE HOUR BUTTON DIED — A SAD CLICK.", "", "SET IT WITH THE MINUTE BUTTON ALONE.", "60 MINUTES CARRY INTO ONE HOUR.", "", "SET THE CLOCK TO 2:30 AM." ],
+  hint:"minutes roll over into hours.\nhold MIN; 60 little steps = one big one. — dad",
+  win:"THE MINUTES CARRIED THE HOURS. BLINK OFF." },
+{ n:7, year:1990, target:T(6,30,true),
+  intro:[ "1990. NO AM/PM BUTTON ON THIS ONE.", "TO REACH EVENING YOU MUST ROLL THE", "HOUR ALL THE WAY PAST 12.", "", "WATCH THE DOT FLIP FROM AM TO PM.", "", "SET THE CLOCK TO 6:30 PM." ],
+  hint:"keep pressing HOUR past 12 — morning\nbecomes night. that dot is your proof.",
+  win:"PAST NOON, INTO NIGHT. THE 12 STOPS BLINKING.", fail:"THAT'S MORNING. THE DOT SAYS SO." },
+{ n:8, year:1989, target:T(4,44,false), code:CODE, kidLock:true,
+  intro:[ "1989. TWO THINGS ARE WRONG.", "A CHILD LOCKED THE DECK —", "EVERY FRONT BUTTON IS SEALED.", "AND THE CLOCK CHIP IS GLITCHED.", "", {t:"① SLIDE THE KID LOCK SWITCH OFF",cls:"dim"}, {t:"② KEY THE SERVICE CODE (SEE MANUAL)",cls:"dim"}, {t:"③ SET THE FACTORY TIME",cls:"dim"}, "", "SET THE CLOCK TO 4:44 AM." ],
+  hint:"the deck won't budge — slide KID LOCK off first.\nthen the code: REW REW FF FF PLAY PAUSE PLAY PAUSE REC.",
+  win:"SVC MODE. FACTORY TIME SET. BLINK BEATEN. DON'T ASK WHY 4:44." },
+{ n:9, year:1988, target:T(9,21,true), storm:true,
+  intro:[ "1988. THE YEAR THE BLINK WENT VIRAL.", "THESE DECKS FORGET THE CLOCK EVERY", "TIME THE POWER SO MUCH AS HICCUPS —", "AND A STORM IS ROLLING IN.", "", "SET THE CLOCK TO 9:21 PM.", "GOOD LUCK KEEPING IT." ],
+  hint:"the power WILL cut. check the junk drawer —\nbatteries let the clock remember.",
+  win:"THE BATTERY REMEMBERS. THE BLINK, DEFEATED." },
+{ n:10, year:1987, target:T(4,4,false), code:CODE, hourDead:true,
+  intro:[ "1987. THE DECK THAT MADE 'BLINKING 12'", "A NATIONAL JOKE. NO REMOTE.", "A DEAD HOUR BUTTON. A SULKING CHIP.", "", "UNLOCK IT WITH THE SERVICE CODE,", "THEN SET THE TIME ON MINUTES ALONE.", "", "SET THE CLOCK TO 4:04 AM." ],
+  hint:"key the code (see the manual), then carry the\nhours using MIN only. slow and steady wins.",
+  win:"THE WORST DECK EVER MADE — SILENCED." },
+{ n:11, year:1986, target:T(12,0,false), tracking:78, code:PREMIERE, scramble:T(7,38,true), oneShot:true, noHint:true,
+  intro:[ "1986. THE FINAL DECK.", "EVERYTHING WRONG AT ONCE —", "AND NOT ONE HINT.", "", {t:"① TRACK THE SNOWY SIGNAL IN",cls:"dim"}, {t:"② KEY THE CODE IT REVEALS",cls:"dim"}, {t:"③ SET THE ONE TIME THAT MATTERS",cls:"dim"}, "", "ONE MISTAKE RESETS EVERYTHING.", "MAKE IT STOP BLINKING. FOR GOOD." ],
+  hint:"",
+  win:"12:00. STEADY. FOREVER. THE BLINK IS DEAD." },
+];
+const FAILS=[ "THE TV GUIDE DISAGREES.", "CLOSE. LIKE A HOROSCOPE.", "THE VCR FORGIVES. THE VCR REMEMBERS.", "THAT IS A TIME. NOT THE TIME.", "ALMOST. THE TAPE MISSES THE COLD OPEN." ];
+
+/* ---------- Thai narrative overlay ---------- */
+const LEVELS_TH=[
+{ intro:[ "ปี 1999 เครื่องรุ่นใหม่สุดในบ้าน", "รีโมทมีปุ่มตัวเลข", "นาฬิกากะพริบ 12:00 ทำให้มันหยุด", "", {t:"① กด RESET บนรีโมท",cls:"dim"}, {t:"② พิมพ์  3 0 0",cls:"dim"}, {t:"③ กด ENTER",cls:"dim"}, "", "ตั้งเป็น 3:00 AM — หยุดการกะพริบ" ],
+  hint:"บนรีโมท: RESET แล้ว 3 0 0 แล้ว ENTER\nแค่นั้นเอง", win:"ไม่กะพริบแล้ว ด่านง่ายผ่านไป" },
+{ intro:[ "ปี 1996 รีโมทแบบเดิม", "เพิ่มอย่างเดียว: จุด AM/PM", "การกะพริบไม่สน แต่กำจัดมันอยู่ดี", "", "พิมพ์เวลา กด AM/PM ให้ได้จุด", "แล้ว ENTER", "", "ตั้งนาฬิกาเป็น 8:30 PM" ],
+  hint:"พิมพ์ 8 3 0 กด AM/PM จนจุดขึ้น PM\nแล้ว ENTER", win:"PM จุดแห่งยามค่ำ การกะพริบหายไป" },
+{ intro:[ "ปี 1994 ตัวนี้ไม่มีรีโมท", "ทำตามคู่มือเป๊ะ ๆ —", "ขั้นตอนจริงจากคู่มือเจ้าของ:", "", {t:"① เปิดฝา 'CLOCK SET'",cls:"dim"}, {t:"② กด CLOCK เพื่อเริ่ม",cls:"dim"}, {t:"③ กด HOUR เลื่อนชั่วโมง",cls:"dim"}, {t:"④ กด MIN เลื่อนนาที",cls:"dim"}, {t:"⑤ กด CLOCK อีกครั้งเพื่อบันทึก",cls:"dim"}, "", "ตั้งนาฬิกาเป็น 10:45 AM" ],
+  hint:"CLOCK แล้วแตะ HOUR ไป 10 แตะ MIN ไป 45\nแล้ว CLOCK เพื่อล็อก ตามคู่มือ", win:"ทำตามคู่มือ ไม่มี 12 กะพริบอีก" },
+{ intro:[ "ปี 1993 รุ่นนี้ตั้งเวลาเอง —", "มันอ่านเวลาจากสัญญาณทีวี", "แต่สัญญาณเป็นหิมะล้วน", "", "หมุนปุ่ม TRACKING จนเวลาจากช่อง", "ชัดเจน", "แล้วบันทึกไว้" ],
+  hint:"ลากปุ่มเงินช้า ๆ หิมะจะเบาลงใกล้จุด\nปุ่ม − และ + ก็ใช้ได้", win:"ล็อกสัญญาณ นาฬิกาตั้งเอง ไม่กะพริบ" },
+{ intro:[ "ปี 1992 มีแต่ปุ่มหน้าเครื่อง", "แถมเลขเป้าหมายโหด", "แตะทีละครั้งคงถึงเช้า", "", {t:"กดปุ่มค้างไว้ — มันจะเร่งเร็วขึ้น",cls:"dim"}, "", "ตั้งนาฬิกาเป็น 11:57 PM", "ระวังจุดด้วย หยุดการกะพริบ" ],
+  hint:"กด HOUR และ MIN ค้างเพื่อพุ่ง PM คือเลย 12\nผ่อนก่อนถึง 57 นิด ๆ", win:"เลี่ยงการแตะ 57 ครั้งได้ การกะพริบยอมแพ้" },
+{ intro:[ "ปี 1991 เครื่องนี้เหนื่อยแล้ว", "ปุ่ม HOUR พัง — เหลือแค่คลิกเศร้า ๆ", "", "ตั้งด้วยปุ่ม MINUTE อย่างเดียว", "60 นาทีทดเป็นหนึ่งชั่วโมง", "", "ตั้งนาฬิกาเป็น 2:30 AM" ],
+  hint:"นาทีทดขึ้นเป็นชั่วโมง\nกด MIN ค้าง 60 ก้าวเล็ก = หนึ่งก้าวใหญ่ — พ่อ", win:"นาทีทดเป็นชั่วโมง การกะพริบดับลง" },
+{ intro:[ "ปี 1990 ตัวนี้ไม่มีปุ่ม AM/PM", "จะไปถึงตอนค่ำต้องหมุนชั่วโมง", "เลย 12 ไปให้สุด", "", "ดูจุดสลับจาก AM เป็น PM", "", "ตั้งนาฬิกาเป็น 6:30 PM" ],
+  hint:"กด HOUR เลย 12 ไปเรื่อย ๆ เช้ากลายเป็นค่ำ\nจุดนั้นคือหลักฐาน", win:"เลยเที่ยงเข้าสู่ค่ำคืน 12 หยุดกะพริบ", fail:"นั่นตอนเช้า จุดมันบอกอยู่" },
+{ intro:[ "ปี 1989 มีสองอย่างที่พัง", "เด็กล็อกเครื่องไว้ —", "ปุ่มหน้าเครื่องถูกปิดตายทุกปุ่ม", "แถมชิปนาฬิกายังเพี้ยน", "", {t:"① เลื่อนสวิตช์ KID LOCK ออก",cls:"dim"}, {t:"② ป้อนรหัสบริการ (ดูคู่มือ)",cls:"dim"}, {t:"③ ตั้งเวลาโรงงาน",cls:"dim"}, "", "ตั้งนาฬิกาเป็น 4:44 AM" ],
+  hint:"เครื่องไม่ขยับ — เลื่อน KID LOCK ออกก่อน\nแล้วรหัส: REW REW FF FF PLAY PAUSE PLAY PAUSE REC", win:"เข้าโหมดบริการ ตั้งเวลาโรงงาน กะพริบพ่าย อย่าถามว่าทำไม 4:44" },
+{ intro:[ "ปี 1988 ปีที่การกะพริบระบาด", "เครื่องพวกนี้ลืมเวลาทุกครั้ง", "ที่ไฟกระพริบแม้แต่นิดเดียว —", "และพายุกำลังมา", "", "ตั้งนาฬิกาเป็น 9:21 PM", "ขอให้โชคดีที่จะรักษามันไว้" ],
+  hint:"ไฟจะดับแน่ ลองดูในลิ้นชักรก —\nถ่านช่วยให้นาฬิกาจำได้", win:"แบตเตอรี่จดจำ การกะพริบพ่ายแพ้" },
+{ intro:[ "ปี 1987 เครื่องที่ทำให้ '12 กะพริบ'", "กลายเป็นเรื่องขำทั้งชาติ ไม่มีรีโมท", "ปุ่ม HOUR ตาย ชิปงอน", "", "ปลดล็อกด้วยรหัสบริการ", "แล้วตั้งเวลาด้วยนาทีอย่างเดียว", "", "ตั้งนาฬิกาเป็น 4:04 AM" ],
+  hint:"ป้อนรหัส (ดูคู่มือ) แล้วทดชั่วโมง\nด้วย MIN อย่างเดียว ช้า ๆ ได้พร้าเล่มงาม", win:"เครื่องที่แย่ที่สุดเท่าที่เคยสร้าง — เงียบสงบ" },
+{ intro:[ "ปี 1986 เครื่องสุดท้าย", "ทุกอย่างพังพร้อมกัน —", "และไม่มีคำใบ้เลยสักนิด", "", {t:"① จูนสัญญาณหิมะเข้ามา",cls:"dim"}, {t:"② ป้อนรหัสที่มันเผยให้เห็น",cls:"dim"}, {t:"③ ตั้งเวลาเดียวที่สำคัญ",cls:"dim"}, "", "พลาดครั้งเดียว รีเซ็ตทั้งหมด", "ทำให้มันหยุดกะพริบ ตลอดกาล" ],
+  hint:"", win:"12:00 นิ่งสนิท ตลอดกาล การกะพริบตายแล้ว" },
+];
+const FAILS_TH=[ "ผังรายการทีวีไม่เห็นด้วย", "เกือบแล้ว เหมือนคำทำนายดวง", "วีซีอาร์ให้อภัย วีซีอาร์จดจำ", "นั่นคือเวลาหนึ่ง แต่ไม่ใช่เวลานั้น", "เกือบแล้ว เทปจะพลาดฉากเปิด" ];
+
+const UI={
+  en:{
+    boot:"CH 3 — VIDEO INPUT", pressPlay:"PRESS PLAY TO BEGIN",
+    title:"■ blinky1200 ■", sub:"blinking since 1987",
+    cont:n=>`CONTINUE — LEVEL ${n}`, newGame:"NEW GAME", speed:"SPEEDRUN MODE ⏱", snow:"SNOW MODE ❄", hall:"HALL OF FAME",
+    nav:"CH+/CH− MOVE · PLAY SELECT", ch3:"CH 3", cornerL:(n,y)=>`L${n} · ${y}`,
+    clear:(n,tm)=>`LEVEL ${n} CLEAR — ${tm}`,
+    svcRefManual:"✖ REFUSED. THE CHIP SULKS. SEE MANUAL.", svcRef:"✖ REFUSED. SEE MANUAL.",
+    svcOk:"✓ SVC MODE. THE CLOCK WILL LISTEN.", svc1200:"③ SET 12:00 AM. MIDNIGHT. LOCK IT IN.",
+    wrongKey:"✖ WRONG KEY. THE CODE RESTARTS.", sadClick:"✖ sad little click.",
+    kidStuck:"✖ THE SWITCH IS STUCK. SINCE THE INCIDENT.",
+    kidLockedTry:"✖ THE DECK IS SEALED. FIND THE KID LOCK.", kidUnlocked:"✓ KID LOCK OFF. THE DECK BREATHES AGAIN.",
+    lock7:[ "SIGNAL LOCKED.", "", "TONIGHT: THE LATE MOVIE — 8:05 PM", "", "SET THE CLOCK TO 8:05 PM." ],
+    corner805:"8:05 PM", lockGeneric:"✓ SIGNAL LOCKED. THE DECK WILL LISTEN.",
+    lock11:[ "SIGNAL LOCKED.", "", "② A SECOND MANUAL PAGE", "FLUTTERS DOWN — LEFT OF", "THE SCREEN.", "KEY THE CODE ON THE", "TRANSPORT BUTTONS." ],
+    stormWipe:[ "⚡ THE POWER BLINKED.", "THE CLOCK FORGOT EVERYTHING.", "OF COURSE IT DID.", "", "THIS MACHINE HAS A BATTERY", "BACKUP SLOT — THE 'BATT' HATCH.", "EMPTY SINCE THE STORE.", "", {t:"CHECK THE JUNK DRAWER.",cls:"dim"} ],
+    survived:[ "⚡ THE POWER BLINKED AGAIN —", "", "AND THE CLOCK HELD.", "THE LITTLE BATTERY HELD." ],
+    battTaken:[ "✓ TWO AA BATTERIES. STILL GOOD.", "OPEN THE BATT HATCH ON THE DECK." ],
+    battIn:[ "✓ BATTERIES IN.", "THE CLOCK CAN REMEMBER NOW.", "", "SET THE CLOCK TO 9:21 PM.", "AND LET THE STORM DO ITS WORST." ],
+    drawerContents:"rubber bands. takeout menus. one chopstick.", batteriesItem:"✦ two AA batteries ✦", takenItem:"✦ taken ✦", junkDrawer:"▚ JUNK DRAWER",
+    nudge:"STUCK? PRESS EJECT FOR A HINT.", stillBlinking:"⏱ still blinking — set the clock", snowFirst:"SNOW MODE: TRACK THE SIGNAL FIRST.",
+    initTitle:"HALL OF FAME — NEW ENTRY", initNav1:"CH+/CH− CHOOSE LETTER · PLAY CONFIRMS", initNav2:"(OR TYPE 3 LETTERS, THEN ENTER)",
+    fameTitle:s=>`★ WALL OF SOLVERS · SERIES ${s} ★`, fameCount:n=>`${n} HAVE STOPPED THE BLINK`,
+    fameEmpty:"NO ONE HAS SOLVED IT YET. BE FIRST.", fameGlobal:"◆ founder  🤖 bot  🐿 squirrel", fameLocal:"LOCAL BOARD · offline", fameBack:"PRESS STOP FOR MENU",
+    resSolved:"■ YOU STOPPED THE BLINK ■", resRank:n=>`SOLVER #${n}`, resBot:"🤖 logged as a bot — honest.", resSub:"only the first are remembered.", resSeeBoard:"▸ SEE THE WALL", resShare:"▸ SHARE / BRAG",
+    practice:"PRACTICE · SANDBOX ↶", resPractice:"■ PRACTICE COMPLETE ■", resPracticeSub:"sandbox run — not ranked. now try it for real.",
+    goTitle:"GAME OVER", goSub:n=>`OUT OF LIVES ON LEVEL ${n}`, goBack:"▸ PRESS PLAY FOR MENU",
+    squirrel:[ "🐿 SECRET SQUIRREL CLUB 🐿", "", "you beat the machine, not the game.", "a perfect solve, faster than", "any human hand. we noticed.", "", "you're on the wall anyway —", "marked as one of us." ],
+    fameClean:"— CLEANEST RUNS · fewest ✖ —", fameSpeed:"— FASTEST SPEEDRUN ⏱ —", fameBonus:"BONUS CHALLENGES OPEN:", fameModes:"SPEEDRUN · SNOW MODE",
+    manualTitle:"SERVICE MANUAL — do not remove",
+    manualBody:(codeHtml,timeStr)=>`blinky1200 MODEL 1200-β<br>TO UNLOCK THE CHIP, KEY:<br><br><span class="code">${codeHtml}</span><br><br>THEN SET:<br><span class="code">${timeStr}</span>`,
+    trackReveal:t=>[ "SIGNAL LOCKED.", "", `SET THE CLOCK TO ${t}.` ],
+    trackThenCode:[ "SIGNAL LOCKED.", "", "A MANUAL PAGE FLUTTERS DOWN,", "LEFT OF THE SCREEN.", "KEY THE CODE IT SHOWS." ],
+    codeSet:t=>`✓ UNLOCKED. NOW SET THE CLOCK TO ${t}.`,
+    oneShotReset:"✖ ONE MISTAKE — IT ALL RESETS.",
+    credits:(tm,mis,h)=>[ "THE MIDNIGHT PREMIERE","RECORDED IN FULL","","— A blinky1200 PRODUCTION —","","STARRING","YOU","","THE CLOCK","AS ITSELF","","TOTAL TIME  "+tm,"MISTAKES  "+mis,"HINT TAPES  "+h,"","A STOPPED CLOCK IS RIGHT","TWICE A DAY.","A SET CLOCK IS RIGHT FOREVER.","","IN MEMORY OF EVERY","BLINKING CLOCK","1987 — 2026","","PLEASE REWIND. ⏮" ],
+  },
+  th:{
+    boot:"ช่อง 3 — สัญญาณวิดีโอ", pressPlay:"กด PLAY เพื่อเริ่ม",
+    title:"■ blinky1200 ■", sub:"กะพริบมาตั้งแต่ปี 1987",
+    cont:n=>`เล่นต่อ — ด่าน ${n}`, newGame:"เกมใหม่", speed:"โหมดจับเวลา ⏱", snow:"โหมดหิมะ ❄", hall:"ทำเนียบเกียรติยศ",
+    nav:"CH+/CH− เลื่อน · PLAY เลือก", ch3:"ช่อง 3", cornerL:(n,y)=>`ด่าน ${n} · ${y}`,
+    clear:(n,tm)=>`ด่าน ${n} ผ่าน — ${tm}`,
+    svcRefManual:"✖ ถูกปฏิเสธ ชิปงอน ดูคู่มือ", svcRef:"✖ ถูกปฏิเสธ ดูคู่มือ",
+    svcOk:"✓ เข้าโหมดบริการ นาฬิกาจะเชื่อฟังแล้ว", svc1200:"③ ตั้ง 12:00 AM เที่ยงคืน แล้วล็อก",
+    wrongKey:"✖ กดผิด รหัสเริ่มใหม่", sadClick:"✖ เสียงคลิกเศร้า ๆ",
+    kidStuck:"✖ สวิตช์ค้าง ตั้งแต่วันเกิดเหตุ",
+    kidLockedTry:"✖ เครื่องถูกปิดตาย หาสวิตช์ KID LOCK", kidUnlocked:"✓ ปลด KID LOCK แล้ว เครื่องหายใจได้อีกครั้ง",
+    lock7:[ "ล็อกสัญญาณแล้ว", "", "คืนนี้: หนังรอบดึก — 8:05 PM", "", "ตั้งนาฬิกาเป็น 8:05 PM" ],
+    corner805:"8:05 PM", lockGeneric:"✓ ล็อกสัญญาณ เครื่องจะเชื่อฟังแล้ว",
+    lock11:[ "ล็อกสัญญาณแล้ว", "", "② คู่มืออีกหน้าร่วงลงมา", "ทางซ้ายของจอ", "", "ป้อนรหัสด้วยปุ่ม", "TRANSPORT" ],
+    stormWipe:[ "⚡ ไฟกะพริบ", "นาฬิกาลืมทุกอย่าง", "แน่นอนอยู่แล้ว", "", "เครื่องนี้มีช่องใส่แบตสำรอง —", "ฝาที่เขียนว่า 'BATT'", "ว่างมาตั้งแต่ออกจากร้าน", "", {t:"ลองดูในลิ้นชักรก",cls:"dim"} ],
+    survived:[ "⚡ ไฟกะพริบอีกครั้ง —", "", "แต่นาฬิกายังอยู่", "แบตก้อนเล็กยังอยู่" ],
+    battTaken:[ "✓ ถ่าน AA สองก้อน ยังใช้ได้", "เปิดฝา BATT บนเครื่อง" ],
+    battIn:[ "✓ ใส่ถ่านแล้ว", "นาฬิกาจำได้แล้ว", "", "ตั้งนาฬิกาเป็น 9:21 PM", "แล้วปล่อยให้พายุทำเต็มที่" ],
+    drawerContents:"หนังยาง เมนูสั่งกลับบ้าน ตะเกียบข้างเดียว", batteriesItem:"✦ ถ่าน AA สองก้อน ✦", takenItem:"✦ หยิบแล้ว ✦", junkDrawer:"▚ ลิ้นชักรก",
+    nudge:"ติดอยู่? กด EJECT เพื่อดูคำใบ้", stillBlinking:"⏱ ยังกะพริบอยู่ — ตั้งนาฬิกาสิ", snowFirst:"โหมดหิมะ: จูนสัญญาณก่อน",
+    initTitle:"ทำเนียบเกียรติยศ — รายชื่อใหม่", initNav1:"CH+/CH− เลือกตัวอักษร · PLAY ยืนยัน", initNav2:"(หรือพิมพ์ 3 ตัวอักษร แล้ว ENTER)",
+    fameTitle:s=>`★ กำแพงผู้พิชิต · ซีรีส์ ${s} ★`, fameCount:n=>`${n} คนหยุดการกะพริบได้แล้ว`,
+    fameEmpty:"ยังไม่มีใครแก้ได้ เป็นคนแรกสิ", fameGlobal:"◆ ผู้ก่อตั้ง  🤖 บอท  🐿 กระรอก", fameLocal:"กระดานเครื่องนี้ · ออฟไลน์", fameBack:"กด STOP เพื่อกลับเมนู",
+    resSolved:"■ คุณหยุดการกะพริบได้ ■", resRank:n=>`ผู้พิชิตคนที่ #${n}`, resBot:"🤖 บันทึกเป็นบอท — ซื่อสัตย์ดี", resSub:"มีแต่คนแรก ๆ ที่ถูกจดจำ", resSeeBoard:"▸ ดูกำแพง", resShare:"▸ แชร์ / อวด",
+    practice:"ฝึกซ้อม · แซนด์บ็อกซ์ ↶", resPractice:"■ ฝึกซ้อมจบแล้ว ■", resPracticeSub:"รันฝึกซ้อม — ไม่นับอันดับ ลองของจริงดูสิ",
+    goTitle:"เกมโอเวอร์", goSub:n=>`หมดชีวิตที่ด่าน ${n}`, goBack:"▸ กด PLAY เพื่อกลับเมนู",
+    squirrel:[ "🐿 ชมรมกระรอกลับ 🐿", "", "คุณชนะเครื่อง ไม่ใช่ชนะเกม", "แก้ได้สมบูรณ์แบบ เร็วกว่า", "มือมนุษย์คนไหน เราเห็นนะ", "", "คุณก็ยังได้ขึ้นกำแพง —", "ในฐานะพวกเราคนหนึ่ง" ],
+    fameClean:"— รันสะอาดสุด · พลาดน้อยสุด ✖ —", fameSpeed:"— โหมดจับเวลาเร็วสุด ⏱ —", fameBonus:"ปลดล็อกด่านท้าทายพิเศษ:", fameModes:"โหมดจับเวลา · โหมดหิมะ",
+    manualTitle:"คู่มือซ่อม — ห้ามนำออก",
+    manualBody:(codeHtml,timeStr)=>`blinky1200 MODEL 1200-β<br>ปลดล็อกชิป กดรหัส:<br><br><span class="code">${codeHtml}</span><br><br>แล้วตั้ง:<br><span class="code">${timeStr}</span>`,
+    trackReveal:t=>[ "ล็อกสัญญาณแล้ว", "", `ตั้งนาฬิกาเป็น ${t}` ],
+    trackThenCode:[ "ล็อกสัญญาณแล้ว", "", "คู่มืออีกหน้าร่วงลงมา", "ทางซ้ายของจอ", "กดรหัสที่มันแสดง" ],
+    codeSet:t=>`✓ ปลดล็อกแล้ว ตั้งนาฬิกาเป็น ${t}`,
+    oneShotReset:"✖ พลาดครั้งเดียว — รีเซ็ตทั้งหมด",
+    credits:(tm,mis,h)=>[ "รอบปฐมทัศน์เที่ยงคืน","อัดครบทั้งเรื่อง","","— ผลงานจาก blinky1200 —","","นำแสดงโดย","คุณ","","นาฬิกา","ในบทตัวเอง","","เวลารวม  "+tm,"พลาด  "+mis,"เทปคำใบ้  "+h,"","นาฬิกาที่หยุดเดินถูกต้อง","วันละสองครั้ง","นาฬิกาที่ตั้งแล้วถูกตลอดกาล","","ด้วยความระลึกถึงนาฬิกา","ที่กะพริบทุกเรือน","1987 — 2026","","กรุณากรอเทปกลับ ⏮" ],
+  },
+};
+function U(key,...a){ const src=(UI[G.lang]&&UI[G.lang][key]!=null)?UI[G.lang][key]:UI.en[key]; return typeof src==="function"?src(...a):src; }
+function LV(n){ n=n||G.level; const en=LEVELS[n-1]; const th=LEVELS_TH[n-1]; return (G.lang==="th"&&th)?Object.assign({},en,th):en; }
+function fails(){ return G.lang==="th"?FAILS_TH:FAILS; }
+
+/* ---------- timer ---------- */
+function levelTimerStart(){ G.visAccum=0; G.visBase=performance.now(); }
+function levelElapsed(){ return G.visAccum + (document.hidden?0:performance.now()-G.visBase); }
+document.addEventListener("visibilitychange",()=>{ if(document.hidden) G.visAccum+=performance.now()-G.visBase; else G.visBase=performance.now(); });
+function fmtMs(ms){ const s=Math.floor(ms/1000); return `${Math.floor(s/60)}:${pad2(s%60)}`; }
+function totalTime(){ return G.splits.reduce((a,b)=>a+b,0); }
+
+/* ---------- level flow ---------- */
+let nudgeTimer=null, cornerTimer=null;
+function armNudge(){ clearTimeout(nudgeTimer); nudgeTimer=setTimeout(()=>{ if(G.screen==="game") el("hintNudge").classList.add("show"); },20000); }
+function tickCorner(){ clearInterval(cornerTimer); cornerTimer=setInterval(()=>{ const c=el("cornerClock"); if(c&&G.screen==="game") c.textContent=fmtMs(levelElapsed()); },500); }
+
+function enterLevel(n){
+  const L=LV(n);
+  G.level=n; G.screen="game"; G.phase=0;
+  G.seqPhase=false; G.seq=[]; G.trackingActive=false; G.trackLocked=false;
+  G.kidLock=!!L.kidLock; G.battInstalled=false;
+  el("kidSwitch").classList.toggle("on",G.kidLock);
+  el("manual").classList.remove("show");
+  el("flap").classList.remove("open");   // re-close the CLOCK SET door each level so "① open the door" is real
+  el("remote").classList.toggle("in", !!L.remote);
+  el("cassette").classList.remove("out"); el("cassLabel").innerText=L.noHint?"— no hints on this one —":L.hint;
+  el("screen").classList.toggle("storm", !!L.storm);
+  el("inSVC").classList.remove("on"); el("inBAT").classList.remove("on");
+  setGarble(0); resetClockFlashing();
+  updateCorner();
+  levelTimerStart(); if(!L.noHint) armNudge(); else el("hintNudge").classList.remove("show");
+  if(G.save.reached<n && G.mode==="normal"){ G.save.reached=n; persist(); }
+
+  const trackSnow = L.tracking || (G.mode==="snow" ? 15+Math.floor(80*((n*37)%100)/100) : 0);
+  if(trackSnow){ G.trackingActive=true; G.trackSweet=trackSnow; G.trackVal=(trackSnow+40)%100; setGarble(garbleFromDial()); }
+  // a service code with NO tracking gate shows its manual immediately; but if the
+  // deck is kid-locked, code entry waits until the player slides KID LOCK off.
+  if(L.code && !trackSnow){ el("manual").classList.add("show"); setManualFor(L); if(!G.kidLock) beginCode(L); }
+  osd(L.intro.concat(G.mode==="snow" && !L.tracking ? ["",{t:U("snowFirst"),cls:"dim"}]:[]));
+  tickCorner();
+}
+function beginCode(L){ G.seqTarget=L.code.slice(); G.seqPhase=true; G.seq=[]; showSeqProgress(); }
+function startCodePhase(L){ el("manual").classList.add("show"); setManualFor(L); beginCode(L); }
+function fmtCodeHtml(code){ // group into lines of 4 keys
+  const label={REW:"REW",FF:"FF",PLAY:"PLAY",PAUSE:"PAUSE",REC:"REC",STOP:"STOP"};
+  const parts=code.map(k=>label[k]||k); const lines=[];
+  for(let i=0;i<parts.length;i+=4) lines.push(parts.slice(i,i+4).join(" "));
+  return lines.join("<br>");
+}
+function setManualFor(L){ el("manTitle").textContent=U("manualTitle");
+  el("manBody").innerHTML=U("manualBody", fmtCodeHtml(L.code), fmt(L.target))
+    + `<br><small style="opacity:.65">keyboard: REW=R  FF=F  PLAY=P  PAUSE=Space  REC=O</small>`; }
+
+function showSeqProgress(){ const n=G.seq.length;
+  showChars(n>0?"-":" ", n>1?"-":" ", n>2?"-":" ", n>3?"-":" ");
+  el("inCLK").classList.remove("on");
+  const tot=G.seqTarget?G.seqTarget.length:0; if(tot>4) el("colon").classList.toggle("on", n%2===0); }
+function garbleFromDial(){ const d=Math.abs(G.trackVal-G.trackSweet); return d<=4?0:clamp((d-4)/G.trackSpread,0.12,1); }
+
+async function levelClear(){
+  clearTimeout(nudgeTimer);
+  const L=LV(); G.splits.push(levelElapsed()); G.solved.push(L.target); // proof for the server
+  G.clock.set=true; G.clock.inSetMode=false; renderClock(); AudioFX.chime();
+  await osd([ L.win, "", {t:U("clear",G.level,fmtMs(G.splits[G.splits.length-1])),cls:"dim"} ]);
+  await sleep(G.mode==="speedrun"?500:1500);
+  if(G.level>=11){ finishGame(); return; }
+  enterLevel(G.level+1);
+}
+function livesNote(){ if(G.easy||G.level<6) return ""; return `  [♥×${Math.max(0,G.lives)}]`; }
+function levelFail(){ G.mistakes++; AudioFX.buzz();
+  const L=LV();
+  if(!G.easy && G.level>=6){ G.lives--; updateCorner(); tickCorner(); if(G.lives<=0){ gameOver(); return; } }
+  if(L.oneShot){ osdAppend("",""); osdAppend(U("oneShotReset"),"dim");
+    setTimeout(()=>enterLevel(G.level), 1400); return; }
+  const f=fails(); const line=L.fail||f[G.mistakes%f.length];
+  osdAppend("",""); osdAppend("✖ "+line+livesNote(),"dim"); G.clock.inSetMode=true; renderClock(); }
+function gameOver(){ G.screen="gameover"; clearInterval(cornerTimer); clearTimeout(nudgeTimer);
+  el("undoBtn").classList.add("hidden"); el("osd").innerHTML=""; AudioFX.buzz();
+  osdAppend(U("goTitle"),"big"); osdAppend(""); osdAppend(U("goSub",G.level),"dim"); osdAppend("");
+  const go=osdAppend(U("goBack"),"menu-line sel"); go.onclick=()=>showMenu(); }
+
+function commitTime(){
+  const L=LV();
+  if(L.storm && G.phase<2){ stormWipe(); return; }
+  if(L.code && G.seqPhase){ AudioFX.deadClick(); return; }
+  G.clock.inSetMode=false; renderClock();
+  if(G.clock.min===L.target){ if(L.storm && G.phase===2){ survivedFlicker(); return; } levelClear(); }
+  else levelFail();
+}
+
+async function stormWipe(){
+  G.phase=1; el("screen").classList.add("flashlite"); AudioFX.thunk();
+  document.body.classList.remove("on"); await sleep(420); document.body.classList.add("on");
+  el("screen").classList.remove("flashlite"); resetClockFlashing();
+  await osd(U("stormWipe"));
+  el("batteriesItem").classList.remove("hidden");
+}
+async function survivedFlicker(){
+  G.phase=3; el("screen").classList.add("flashlite"); AudioFX.thunk(); await sleep(500);
+  el("screen").classList.remove("flashlite"); el("inBAT").classList.add("on");
+  await osd(U("survived"));
+  await sleep(600); levelClear();
+}
+
+/* ---------- finish / leaderboard ---------- */
+async function finishGame(){
+  G.screen="credits"; clearInterval(cornerTimer); corner("");
+  if(G.mode==="normal"){ G.save.unlockSpeedrun=true; G.save.unlockSnow=true; persist(); }
+  AudioFX.grandChime(); el("osd").innerHTML="";
+  const roll=el("creditRoll");
+  roll.innerHTML=U("credits",fmtMs(totalTime()),G.mistakes,G.hintsUsed)
+    .map(l=>l===""?"<br>":`<div>${l}</div>`).join("");
+  el("credits").classList.add("show");
+  roll.style.animation="none"; roll.offsetHeight; roll.style.animation="";
+  await sleep(G.mode==="speedrun"?6000:14000);
+  el("credits").classList.remove("show");
+  el("undoBtn").classList.add("hidden");
+  if(G.easy){ G.lastResult={practice:true}; showResult(); } else enterInitials();
+}
+function enterInitials(){ G.screen="initials"; G.initials=["A","A","A"]; G.initSlot=0; drawInitials(); }
+function drawInitials(){ const box=el("osd"); box.innerHTML="";
+  osdAppend(U("initTitle")); osdAppend("");
+  osdAppend("   "+G.initials.map((c,i)=>i===G.initSlot?`[${c}]`:` ${c} `).join(" "));
+  osdAppend(""); osdAppend(U("initNav1"),"dim"); osdAppend(U("initNav2"),"dim");
+  osdAppend(`${fmtMs(totalTime())} · ✖${G.mistakes} · ${G.mode.toUpperCase()}`,"dim"); }
+function initialsInput(key){ const A="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  if(key==="CHUP"||key==="CHDN"){ const d=key==="CHUP"?1:-1; const cur=A.indexOf(G.initials[G.initSlot]);
+    G.initials[G.initSlot]=A[(cur+d+26)%26]; AudioFX.beep(); drawInitials(); }
+  else if(key==="PLAY"){ AudioFX.click(); if(G.initSlot<2){ G.initSlot++; drawInitials(); } else saveScore(); }
+  else if(/^[A-Z]$/.test(key)){ G.initials[G.initSlot]=key; if(G.initSlot<2) G.initSlot++; drawInitials(); } }
+
+async function saveScore(){
+  const name=G.initials.join("");
+  const res=await submitFinish(name);   // server verifies + assigns the rank
+  if(res && res.squirrel){ G.lastResult={squirrel:true, rank:res.rank, acorn:res.acorn, message:res.message}; showSquirrel(); return; }
+  if(res && res.ok){
+    G.lastResult={ rank:res.rank, kind:res.kind, total:res.total };
+    G.board=await fetchGlobal();        // pull the fresh authoritative wall
+  } else {
+    // offline / no server — record a local entry in solve order so the game still works
+    const rank=(localBoard().reduce((m,r)=>Math.max(m,r.rank),0))+1;
+    const entry={ rank, name, kind:G.selfBot?"bot":"human", mode:G.mode, when:new Date().toISOString().slice(0,10) };
+    G.save.leaderboard.push(entry); persist();
+    G.lastResult={ rank, kind:entry.kind, local:true };
+  }
+  showResult();
+}
+
+/* arcade "YOU ARE SOLVER #N" splash, then the wall */
+async function showResult(){
+  G.screen="result"; el("osd").innerHTML=""; el("undoBtn").classList.add("hidden");
+  const r=G.lastResult||{};
+  if(r.practice){ osdAppend(U("resPractice")); osdAppend(""); osdAppend(U("resPracticeSub"),"dim"); osdAppend("");
+    const m=osdAppend(U("goBack"),"menu-line sel"); m.onclick=()=>showMenu(); return; }
+  osdAppend(U("resSolved"));
+  osdAppend("");
+  osdAppend(U("resRank", r.rank), "big");
+  if(r.kind==="bot") osdAppend(U("resBot"),"dim");
+  osdAppend(""); osdAppend(U("resSub"),"dim");
+  if(r.local) osdAppend(U("fameLocal"),"dim");
+  osdAppend("");
+  const go=osdAppend(U("resSeeBoard"),"menu-line sel"); go.onclick=()=>showFame();
+  const sh=osdAppend(U("resShare"),"menu-line"); sh.onclick=()=>openShare();
+}
+
+function showSquirrel(){
+  G.screen="squirrel"; el("osd").innerHTML="";
+  const r=G.lastResult||{};
+  U("squirrel").forEach(line=>osdAppend(line));
+  osdAppend(""); osdAppend("🐿  "+(r.acorn||"ACORN-1200"), "");
+  osdAppend(""); osdAppend(U("resRank", r.rank),"dim");
+  osdAppend("");
+  const go=osdAppend(U("resSeeBoard"),"menu-line sel"); go.onclick=()=>showFame();
+}
+
+function fameRow(r){ const tag=r.mode==="speedrun"?" SPD":r.mode==="snow"?" SNW":"";
+  const you=(G.lastResult && r.rank===G.lastResult.rank && !r.founder)?" <YOU":"";
+  return `${badgeFor(r)}${String(r.rank).padStart(2," ")}. ${r.name}  ${(r.when||"").slice(5)}${tag}${you}`; }
+function showFame(){ G.screen="fame"; el("osd").innerHTML="";
+  const lb=(G.board||localBoard()).slice().sort((a,b)=>a.rank-b.rank);
+  const total=G.board?(G.total||lb.length):lb.length;
+  osdAppend(U("fameTitle",SERIES));
+  osdAppend(U("fameCount",total), "dim");
+  if(G.board) osdAppend(U("fameGlobal"),"dim"); else if(LEADERBOARD_URL) osdAppend(U("fameLocal"),"dim");
+  if(!lb.length) osdAppend(U("fameEmpty"),"dim");
+  lb.slice(0,12).forEach(r=>osdAppend(fameRow(r), r.rank<=3?"":"dim"));
+  osdAppend("");
+  const sh=osdAppend(U("resShare"),"menu-line"); sh.onclick=()=>openShare();
+  const back=osdAppend(U("fameBack"),"menu-line"); back.onclick=()=>showMenu(); }
+
+/* ---------- menu ---------- */
+function menuData(){ const items=[];
+  if(G.save.reached>1 && G.save.reached<=11) items.push({t:U("cont",G.save.reached), fn:()=>startRun("normal",G.save.reached)});
+  items.push({t:U("newGame"), fn:()=>startRun("normal",1)});
+  items.push({t:U("practice"), fn:()=>startRun("easy",1)});
+  if(G.save.unlockSpeedrun) items.push({t:U("speed"), fn:()=>startRun("speedrun",1)});
+  if(G.save.unlockSnow) items.push({t:U("snow"), fn:()=>startRun("snow",1)});
+  items.push({t:U("hall"), fn:()=>{ showFame(); refreshBoard(); }}); return items; }
+function showMenu(){ G.screen="menu"; G.menuSel=0; G.menuItems=menuData();
+  el("screen").classList.remove("storm"); el("credits").classList.remove("show"); setGarble(0);
+  el("undoBtn").classList.add("hidden");
+  corner(U("ch3")); drawMenu(); }
+function drawMenu(){ const box=el("osd"); box.innerHTML="";
+  osdAppend(U("title")); osdAppend(U("sub"),"dim"); osdAppend("");
+  G.menuItems.forEach((it,i)=>{ const d=osdAppend(it.t,"menu-line"+(i===G.menuSel?" sel":"")); d.onclick=()=>{ G.menuSel=i; AudioFX.click(); it.fn(); }; });
+  osdAppend(""); osdAppend(U("nav"),"dim"); }
+function startRun(mode,level){ G.mode=mode; G.easy=(mode==="easy"); G.mistakes=0; G.hintsUsed=0; G.splits=[]; G.solved=[]; G.lastResult=null;
+  G.lives=3; G.undoStack=[];
+  el("undoBtn").classList.toggle("hidden", !G.easy);
+  if(mode!=="normal") level=1;
+  if(!G.easy) startServerRun();   // practice runs never touch the leaderboard
+  enterLevel(level); }
+function pushUndo(){ if(!G.easy) return; G.undoStack.push({min:G.clock.min,inSetMode:G.clock.inSetMode,set:G.clock.set,seq:G.seq.slice()}); if(G.undoStack.length>600) G.undoStack.shift(); }
+function doUndo(){ if(!G.easy||!G.undoStack.length){ AudioFX.deadClick(); return; } AudioFX.click();
+  const s=G.undoStack.pop(); G.clock.min=s.min; G.clock.inSetMode=s.inSetMode; G.clock.set=s.set; G.seq=s.seq.slice();
+  if(G.seqPhase) showSeqProgress(); else renderClock(); }
+function livesHearts(){ if(G.easy||G.level<6) return ""; return " "+"♥".repeat(Math.max(0,G.lives))+"·".repeat(Math.max(0,3-G.lives)); }
+function updateCorner(){ const L=LV(); corner(`${U("cornerL",G.level,L.year)}${livesHearts()}<br><span id="cornerClock"></span>`); }
+
+/* ---------- boot ---------- */
+async function powerOn(){
+  document.body.classList.add("on"); AudioFX.thunk(); G.screen="boot"; await sleep(320);
+  await osd([ "blinky1200 · MODEL 1200-β", U("boot"),"" ]);
+  await sleep(250);
+  if(G.save.reached>1 || G.save.unlockSpeedrun || G.save.leaderboard.length){ showMenu(); return; }
+  const p=osdAppend(U("pressPlay"),"menu-line sel"); p.onclick=()=>{ AudioFX.click(); startRun("normal",1); };
+  G.screen="menu"; G.menuItems=[{t:U("pressPlay"), fn:()=>startRun("normal",1)}]; G.menuSel=0;
+  $$(".vbtn[data-k=PLAY]")[0].classList.add("attn");
+}
+function powerOff(){ document.body.classList.remove("on"); G.screen="off"; typeToken++;
+  el("osd").innerHTML=""; corner(""); el("credits").classList.remove("show"); setGarble(0);
+  AudioFX.thunk(); AudioFX.whirStop(); }
+
+/* ---------- input ---------- */
+function transportFlavor(k){
+  if(k==="PLAY"||k==="FF"||k==="REW"){ AudioFX.whirStart(k!=="PLAY"); setTimeout(()=>AudioFX.whirStop(),650); }
+  if(k==="STOP"||k==="PAUSE") AudioFX.whirStop();
+  if(k==="REC"){ el("recLed").classList.add("on"); setTimeout(()=>el("recLed").classList.remove("on"),900); }
+}
+function pressKey(k){
+  AudioFX.unlock();
+  if(k==="POWER"){ document.body.classList.contains("on")?powerOff():powerOn(); return; }
+  if(G.screen==="off"){ AudioFX.deadClick(); return; }
+  if(k==="EJECT"){ AudioFX.click(); ejectHint(); return; }
+  if(G.screen==="menu"){
+    if(k==="CHUP"||k==="CHDN"){ G.menuSel=(G.menuSel+(k==="CHUP"?-1:1)+G.menuItems.length)%G.menuItems.length; AudioFX.beep(); drawMenu(); return; }
+    if(k==="PLAY"){ AudioFX.click(); $$(".vbtn[data-k=PLAY]")[0].classList.remove("attn"); G.menuItems[G.menuSel].fn(); return; }
+    AudioFX.deadClick(); return;
+  }
+  if(G.screen==="initials"){ initialsInput(k); return; }
+  if(G.screen==="result"||G.screen==="squirrel"){ if(k==="PLAY"||k==="STOP"){ AudioFX.click(); (G.lastResult&&G.lastResult.practice)?showMenu():showFame(); } else AudioFX.deadClick(); return; }
+  if(G.screen==="gameover"){ if(k==="PLAY"||k==="STOP"){ AudioFX.click(); showMenu(); } else AudioFX.deadClick(); return; }
+  if(G.screen==="fame"){ if(k==="STOP"){ AudioFX.click(); showMenu(); } else AudioFX.deadClick(); return; }
+  if(G.screen!=="game"){ AudioFX.deadClick(); return; }
+  const L=LV();
+  if(!L.noHint){ el("hintNudge").classList.remove("show"); armNudge(); }
+
+  if(G.kidLock){ AudioFX.deadClick(); shakeDeck();
+    const last=el("osd").lastChild; if(!last||last.textContent!==U("kidLockedTry")) osdAppend(U("kidLockedTry"),"dim"); return; }
+  const TRANSPORT=["REW","FF","PLAY","STOP","PAUSE","REC"];
+  if(G.seqPhase && TRANSPORT.includes(k)){ AudioFX.click(); transportFlavor(k); seqPress(k); return; }
+  if(G.trackingActive && !G.trackLocked && ["CLOCK","HOUR","MIN"].includes(k)){ AudioFX.deadClick(); return; }
+
+  if(k==="CLOCK"){ AudioFX.click();
+    if(L.code && !el("inSVC").classList.contains("on")){ osdAppend(U("svcRefManual"),"dim"); AudioFX.buzz(); return; }
+    if(G.clock.inSetMode) commitTime(); else { G.clock.inSetMode=true; G.clock.set=false; renderClock(); } return; }
+  if(k==="HOUR"||k==="MIN"){
+    if(L.hourDead && k==="HOUR"){ AudioFX.deadClick(); osdAppend(U("sadClick"),"dim"); return; }
+    if(!G.clock.inSetMode){ AudioFX.deadClick(); return; }
+    pushUndo(); AudioFX.click(); G.clock.min=(G.clock.min+(k==="HOUR"?60:1))%1440; renderClock(); return; }
+  if(k==="CHUP"||k==="CHDN"){ AudioFX.beep(); return; }
+  AudioFX.click(); transportFlavor(k);
+}
+function shakeDeck(){ el("vcr").animate([{transform:"translateX(0)"},{transform:"translateX(-3px)"},{transform:"translateX(3px)"},{transform:"translateX(0)"}],{duration:160}); }
+
+function seqPress(k){ const t=G.seqTarget; if(!t) return;
+  const L=LV(); pushUndo();
+  if(k===t[G.seq.length]){ G.seq.push(k); showSeqProgress();
+    if(G.seq.length===t.length){ G.seqPhase=false; G.seq=[]; el("inSVC").classList.add("on"); AudioFX.chime(); showChars("S","V","C"," ");
+      setTimeout(()=>{
+        if(L.scramble!=null){ G.clock.min=L.scramble; G.clock.set=false; G.clock.inSetMode=false; }
+        else resetClockFlashing();
+        renderClock(); osdAppend("",""); osdAppend(U("codeSet", fmt(L.target)),""); },900); }
+  } else { G.seq=[]; AudioFX.buzz(); showSeqProgress();
+    if(L.oneShot) levelFail(); else osdAppend(U("wrongKey"),"dim"); } }
+
+/* hint cassette */
+let cassBusy=false;
+async function ejectHint(){ if(cassBusy||G.screen!=="game") return; cassBusy=true; const cass=el("cassette");
+  if(cass.classList.contains("out")){ cass.classList.remove("out"); AudioFX.whirStart(false); setTimeout(()=>AudioFX.whirStop(),450); cassBusy=false; return; }
+  AudioFX.whirStart(false); await sleep(430); AudioFX.whirStop(); AudioFX.thunk(); cass.classList.add("out"); G.hintsUsed++; cassBusy=false; }
+el("cassette").addEventListener("click",()=>{ el("cassette").classList.remove("out"); AudioFX.whirStart(false); setTimeout(()=>AudioFX.whirStop(),400); });
+
+/* remote */
+function remotePress(r){ AudioFX.unlock();
+  if(G.screen!=="game"){ AudioFX.deadClick(); return; }
+  const L=LV();
+  if(!L.noHint){ el("hintNudge").classList.remove("show"); armNudge(); }
+  if(!L.remote){ AudioFX.deadClick(); return; }
+  if(G.trackingActive && !G.trackLocked){ AudioFX.deadClick(); return; }
+  if(L.code && G.seqPhase){ AudioFX.deadClick(); return; }
+  if(L.code && !el("inSVC").classList.contains("on")){ AudioFX.buzz(); osdAppend(U("svcRef"),"dim"); return; }
+  AudioFX.click();
+  if(/^[0-9]$/.test(r)){
+    pushUndo();
+    if(!G.clock.inSetMode){ G.clock.inSetMode=true; G.entry=[]; }
+    G.entry.push(Number(r)); if(G.entry.length>4) G.entry.shift();
+    const digits=G.entry.join(""); const m=Number(digits.slice(-2)), h=Number(digits.slice(0,-2)||"0");
+    const t=minToHM(G.clock.min); const useH=h>=1&&h<=12?h:t.h12;
+    const useM=digits.length>=2&&m<=59?m:(digits.length===1?Number(digits):t.m);
+    G.clock.min=((useH%12)+(t.pm?12:0))*60+useM; renderClock(); return; }
+  if(r==="AMPM"){ pushUndo(); G.clock.min=(G.clock.min+720)%1440; if(!G.clock.inSetMode) G.clock.inSetMode=true; renderClock(); return; }
+  if(r==="CLR"){ G.entry=[]; resetClockFlashing(); G.clock.inSetMode=true; renderClock(); return; }
+  if(r==="ENTER"){ if(G.clock.inSetMode) commitTime(); else AudioFX.deadClick(); return; }
+}
+
+/* tracking dial */
+function trackTo(v){ G.trackVal=clamp(v,0,100);
+  el("trackDial").style.transform=`rotate(${G.trackVal*5.4}deg)`;
+  if(!G.trackingActive||G.trackLocked) return;
+  const g=garbleFromDial(); setGarble(g); el("trackDial").classList.toggle("hot",g<0.3);
+  if(g===0){ if(!G.trackLockT) G.trackLockT=setTimeout(trackLocked,850); }
+  else if(G.trackLockT){ clearTimeout(G.trackLockT); G.trackLockT=0; } }
+async function trackLocked(){ G.trackLockT=0; G.trackLocked=true; G.trackingActive=false; setGarble(0); AudioFX.chime();
+  el("trackDial").classList.remove("hot");
+  const L=LV();
+  resetClockFlashing();
+  if(L.code){ // gauntlet: tracking revealed a service code — key it next
+    startCodePhase(L);
+    await osd(U("trackThenCode")); }
+  else { // tracking auto-set: reveal the time to save
+    await osd(U("trackReveal", fmt(L.target))); } }
+(function dialSetup(){ const dial=el("trackDial"); let dragging=false, lastY=0;
+  dial.addEventListener("pointerdown",e=>{ dragging=true; lastY=e.clientY; dial.setPointerCapture(e.pointerId); AudioFX.unlock(); });
+  dial.addEventListener("pointermove",e=>{ if(!dragging) return; const dy=lastY-e.clientY; lastY=e.clientY; trackTo(G.trackVal+dy*0.35); });
+  dial.addEventListener("pointerup",()=>dragging=false); dial.addEventListener("pointercancel",()=>dragging=false);
+  $$(".trackStep").forEach(b=>b.addEventListener("click",()=>{ AudioFX.click(); trackTo(G.trackVal+Number(b.dataset.t)*2); })); })();
+
+/* battery quest */
+el("drawer").addEventListener("click",e=>{ if(e.target.id==="batteriesItem") return; AudioFX.thunk(); el("drawer").classList.toggle("open"); });
+el("batteriesItem").addEventListener("click",e=>{ e.stopPropagation();
+  if(G.batteries||!LV().storm) return; G.batteries=true; AudioFX.click(); el("batteriesItem").textContent=U("takenItem");
+  osdAppend("",""); osdAppend(U("battTaken")[0],"dim"); osdAppend(U("battTaken")[1],""); });
+el("battDoor").addEventListener("click",()=>{ AudioFX.click(); const hatch=el("battHatch"); hatch.classList.toggle("open");
+  if(LV().storm && G.batteries && !G.battInstalled && hatch.classList.contains("open")){
+    G.battInstalled=true; G.phase=2; el("battInner").innerHTML='<div class="aabatt"></div><div class="aabatt"></div>';
+    el("inBAT").classList.add("on"); AudioFX.chime();
+    osd(U("battIn"));
+  } else if(!el("battInner").innerHTML.includes("aabatt")){ el("battInner").innerHTML=G.battInstalled?'<div class="aabatt"></div><div class="aabatt"></div>':'<span>dust</span>'; } });
+
+el("kidSwitch").addEventListener("click",()=>{
+  if(G.screen==="game" && G.kidLock){
+    G.kidLock=false; el("kidSwitch").classList.remove("on"); AudioFX.click();
+    osdAppend(""); osdAppend(U("kidUnlocked"),"dim");
+    const L=LV();
+    if(L.code && !G.seqPhase && !el("inSVC").classList.contains("on") && !(L.tracking && !G.trackLocked)) beginCode(L);
+  } else AudioFX.click();
+});
+
+/* buttons w/ hold-repeat */
+function bindHold(btn,fire){ let t1=null,t2=null;
+  const start=e=>{ e.preventDefault(); fire();
+    t1=setTimeout(()=>{ t2=setInterval(fire,105); setTimeout(()=>{ if(t2){ clearInterval(t2); t2=setInterval(fire,34); } },1400); },480);
+    btn.classList.add("pressed"); };
+  const stop=()=>{ clearTimeout(t1); if(t2) clearInterval(t2); t1=t2=null; btn.classList.remove("pressed"); };
+  btn.addEventListener("pointerdown",start); ["pointerup","pointerleave","pointercancel"].forEach(ev=>btn.addEventListener(ev,stop)); }
+$$(".vbtn").forEach(b=>{ const k=b.dataset.k; if(k==="HOUR"||k==="MIN") bindHold(b,()=>pressKey(k)); else b.addEventListener("click",()=>pressKey(k)); });
+$$(".rbtn").forEach(b=>b.addEventListener("click",()=>remotePress(b.dataset.r)));
+el("flapDoor").addEventListener("click",()=>{ AudioFX.thunk(); el("flap").classList.add("open"); });
+el("screen").addEventListener("click",()=>{ typeToken++; });
+
+el("muteBtn").addEventListener("click",()=>{ G.save.muted=!G.save.muted; persist(); AudioFX.setMuted(G.save.muted);
+  el("muteBtn").classList.toggle("muted",G.save.muted); el("muteBtn").textContent=G.save.muted?"MUTED":"SOUND"; });
+el("blinkBtn").addEventListener("click",()=>{ G.save.fullBlink=!G.save.fullBlink; persist();
+  el("blinkBtn").classList.toggle("on",G.save.fullBlink); el("blinkBtn").textContent=G.save.fullBlink?"BLINK: ON":"BLINK: OFF"; renderClock(); });
+el("readBtn").addEventListener("click",()=>{ G.save.readable=!G.save.readable; persist();
+  document.body.classList.toggle("readable",G.save.readable); el("readBtn").classList.toggle("on",G.save.readable); });
+el("undoBtn").addEventListener("click",()=>{ if(G.screen==="game") doUndo(); });
+
+/* ---------- sharing ---------- */
+const SHARES=[
+  {k:"Facebook", ic:"📘", u:(url,t)=>`https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${t}`},
+  {k:"X",        ic:"𝕏",  u:(url,t)=>`https://twitter.com/intent/tweet?text=${t}&url=${url}`},
+  {k:"WhatsApp", ic:"💬", u:(url,t)=>`https://api.whatsapp.com/send?text=${t}%20${url}`},
+  {k:"LINE",     ic:"💚", u:(url,t)=>`https://line.me/R/msg/text/?${t}%20${url}`},
+  {k:"Telegram", ic:"✈️", u:(url,t)=>`https://t.me/share/url?url=${url}&text=${t}`},
+  {k:"Reddit",   ic:"👽", u:(url,t)=>`https://www.reddit.com/submit?url=${url}&title=${t}`},
+  {k:"Messenger",ic:"💠", u:(url,t)=>`https://www.facebook.com/dialog/send?link=${url}&app_id=291494419107518&redirect_uri=${url}`},
+  {k:"Email",    ic:"✉️", u:(url,t)=>`mailto:?subject=blinky1200&body=${t}%20${url}`},
+];
+function shareUrlStr(){ let u=SHARE_URL||(location.origin+location.pathname); if(u.startsWith("file:")) u="https://blinky1200.pages.dev/"; return u; }
+function shareTextStr(){ const r=G.lastResult;
+  if(r && r.rank && !r.practice) return `I'm SOLVER #${r.rank} — I stopped the clock that's blinked 12:00 since 1987. Beat me on blinky1200:`;
+  return `blinky1200 — a cute, cutthroat retro VCR puzzle. Can you make the 12:00 stop blinking?`; }
+function openShare(){
+  const url=shareUrlStr(), text=shareTextStr(), eu=encodeURIComponent(url), et=encodeURIComponent(text);
+  el("shareMsg").textContent=text; el("shareLinkInput").value=url;
+  const grid=el("shareGrid"); grid.innerHTML="";
+  if(navigator.share){ const b=document.createElement("div"); b.className="shareItem";
+    b.innerHTML=`<span class="ic">📲</span>Share…`; b.onclick=()=>navigator.share({title:"blinky1200",text,url}).catch(()=>{}); grid.appendChild(b); }
+  SHARES.forEach(s=>{ const b=document.createElement("div"); b.className="shareItem";
+    b.innerHTML=`<span class="ic">${s.ic}</span>${s.k}`; b.onclick=()=>window.open(s.u(eu,et),"_blank","noopener"); grid.appendChild(b); });
+  el("shareOverlay").classList.remove("hidden");
+}
+function closeShare(){ el("shareOverlay").classList.add("hidden"); }
+el("shareBtn").addEventListener("click",()=>{ AudioFX.click(); openShare(); });
+el("shareClose").addEventListener("click",()=>{ AudioFX.click(); closeShare(); });
+el("shareOverlay").addEventListener("click",e=>{ if(e.target.id==="shareOverlay") closeShare(); });
+el("shareCopyBtn").addEventListener("click",()=>{ try{ navigator.clipboard.writeText(shareUrlStr());
+  el("shareCopyBtn").textContent="COPIED"; setTimeout(()=>el("shareCopyBtn").textContent="COPY",1500);}catch(e){} });
+
+function applyStaticText(){
+  el("drawerLabel").textContent=U("junkDrawer");
+  el("drawerText").textContent=U("drawerContents");
+  if(!G.batteries) el("batteriesItem").textContent=U("batteriesItem");
+  el("hintNudge").textContent=U("nudge");
+  el("blinkNote").textContent=U("stillBlinking");
+  el("langBtn").textContent=G.lang==="th"?"ENGLISH":"ภาษาไทย";
+}
+function setLang(lang){
+  G.lang=lang; G.save.lang=lang; persist(); applyStaticText();
+  if(el("manual").classList.contains("show")) setManualFor(LV());
+  if(G.screen==="menu") showMenu();
+  else if(G.screen==="fame") showFame();
+  else if(G.screen==="initials") drawInitials();
+  else if(G.screen==="game" && G.phase===0 && !G.seqPhase){ const L=LV(); corner(`${U("cornerL",G.level,L.year)}<br><span id="cornerClock"></span>`); osd(L.intro); tickCorner(); }
+}
+el("langBtn").addEventListener("click",()=>{ AudioFX.click(); setLang(G.lang==="th"?"en":"th"); });
+
+/* keyboard */
+document.addEventListener("keydown",e=>{
+  if(e.repeat && !["h","m","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) return;
+  const k=e.key;
+  if(G.screen==="initials"){ if(/^[a-zA-Z]$/.test(k)){ initialsInput(k.toUpperCase()); return; }
+    if(k==="Enter"){ saveScore(); return; }
+    if(k==="ArrowUp"){ initialsInput("CHUP"); return; } if(k==="ArrowDown"){ initialsInput("CHDN"); return; } return; }
+  if(/^[0-9]$/.test(k)){ remotePress(k); return; }
+  if(k==="Enter"){ if(G.screen==="menu") pressKey("PLAY"); else remotePress("ENTER"); return; }
+  if(k==="h"||k==="H") pressKey("HOUR");
+  else if(k==="m"||k==="M") pressKey("MIN");
+  else if(k==="c"||k==="C") pressKey("CLOCK");
+  else if(k==="p"||k==="P") pressKey("PLAY");
+  else if(k==="e"||k==="E") pressKey("EJECT");
+  else if(k==="u"||k==="U"){ if(G.screen==="game") doUndo(); }
+  else if(k==="r"||k==="R") pressKey("REW");
+  else if(k==="f"||k==="F") pressKey("FF");
+  else if(k==="s"||k==="S") pressKey("STOP");
+  else if(k==="o"||k==="O") pressKey("REC");
+  else if(k===" ") { e.preventDefault(); pressKey("PAUSE"); }
+  else if(k==="a"||k==="A") remotePress("AMPM");
+  else if(k==="Backspace"||k==="Delete") { e.preventDefault(); remotePress("CLR"); }
+  else if(k==="k"||k==="K") el("kidSwitch").click();   // kid lock
+  else if(k==="j"||k==="J"){ const d=el("drawer"), bi=el("batteriesItem");   // junk drawer: open -> take -> close
+    if(!d.classList.contains("open")) d.click();
+    else if(bi && !bi.classList.contains("hidden") && !G.batteries) bi.click();
+    else d.click(); }
+  else if(k==="b"||k==="B") el("battDoor").click();    // battery hatch
+  else if(k==="ArrowUp") pressKey("CHUP");
+  else if(k==="ArrowDown") pressKey("CHDN");
+  else if(k==="ArrowLeft") trackTo(G.trackVal-2);
+  else if(k==="ArrowRight") trackTo(G.trackVal+2);
+});
+
+/* debug */
+window.b12={
+  get state(){ return G; },
+  skip(n){ G.mode=G.mode||"normal"; if(!document.body.classList.contains("on")) document.body.classList.add("on");
+    G.splits=G.splits.slice(0,n-1); while(G.splits.length<n-1) G.splits.push(1000);
+    G.solved=LEVELS.slice(0,n-1).map(l=>l.target); enterLevel(n); },
+  win(){ const L=LEVELS[G.level-1]; G.trackLocked=true; G.trackingActive=false; G.seqPhase=false;
+    el("inSVC").classList.add("on"); G.phase=2; G.battInstalled=true; setGarble(0);
+    G.clock.min=L.target; G.clock.inSetMode=true; commitTime(); },
+  bot(v){ G.selfBot=(v!==false); return G.selfBot; },   // self-disclose as a bot -> 🤖
+  wipe(){ localStorage.removeItem(SAVE_KEY); location.reload(); },
+};
+
+/* boot */
+buildDigits(); loadSave(); seedFounders(); AudioFX.setMuted(G.save.muted);
+if(G.save.muted){ el("muteBtn").classList.add("muted"); el("muteBtn").textContent="MUTED"; }
+if(G.save.fullBlink){ el("blinkBtn").classList.add("on"); el("blinkBtn").textContent="BLINK: ON"; }
+if(G.save.readable){ document.body.classList.add("readable"); el("readBtn").classList.add("on"); }
+G.lang=G.save.lang||"en"; applyStaticText();
+resetClockFlashing();
+el("powerBtn").classList.add("attn");
+el("powerBtn").addEventListener("click",()=>el("powerBtn").classList.remove("attn"),{once:true});
+if("serviceWorker" in navigator){ window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
+</script>
+</body>
+</html>

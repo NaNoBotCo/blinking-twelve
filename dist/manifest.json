@@ -1,0 +1,16 @@
+{
+  "name": "blinky1200 — a VCR puzzle",
+  "short_name": "blinky1200",
+  "description": "Stop the clock that's been blinking 12:00 since 1987. A cute, cutthroat retro VCR puzzle.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0a0a0c",
+  "theme_color": "#0a0a0c",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
