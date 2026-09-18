@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this work, cite it as below."
+title: "Blinking Twelve"
+abstract: "blinky1200 — a skeuomorphic puzzle: set the blinking 12:00, eleven levels, 1987 to 2026"
+type: software
+authors:
+  - name: "NaN"
+    website: "https://github.com/NaNoBotCo"
+repository-code: "https://github.com/NaNoBotCo/blinking-twelve"
+url: "https://nanobotco.github.io/blinking-twelve/"
+license:
+  - CC-BY-SA-4.0
+  - AGPL-3.0-or-later
+date-released: "2026-09-18"
